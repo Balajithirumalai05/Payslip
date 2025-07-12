@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>View Payslip</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+    <style>
+    
+    </style>
+    <script src="../app/static/tailwind.js"></script>
+</head>
+
+<body class="bg-white text-black/90 min-h-screen font-sans">
+    <div class="flex h-screen overflow-hidden p-3">
+        <aside id="sidebar"
+            class="bg-zinc-200/80 rounded-lg py-5 relative flex flex-col justify-between w-16 min-w-[64px]">
+            <div class="300 flex flex-col justify-center items-center">
+                <div class="flex items-center gap-2 mb-8">
+                    <img src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/image-removebg-preview-15%201-G0lGat5BJUm8O34c0iVcGQ6iTs9gtn.png"
+                        alt="Company Logo" class="w-12 h-12 flex-shrink-0">
+                    </h1>
+                </div>
+                <nav class="space-y-2">
+                    <a href="/home"
+                        class="nav-item flex items-center p-3  rounded-lg hover:bg-gray-300 hover:text-primary transition-colors group relative">
+                        <span class="nav-icon text-xl"><i class="ri-home-line"></i></span>
+                        <span
+                            class="absolute left-12 top-1/2 transform -translate-y-1/2 bg-gray-900 text-white text-xs px-4 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10 ">Dashboard</span>
+                    </a>
+                   
+               
+                    <a href="/payslip"
+                        class="nav-item flex items-center p-3  rounded-lg bg-gray-300 text-primary transition-colors group relative">
+                        <span class="nav-icon text-xl"><i class="ri-currency-fill"></i></span>
+                        <span
+                            class="absolute left-12 top-1/2 transform -translate-y-1/2 bg-gray-900 text-white text-xs px-4 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10 ">Payslip</span>
+                    </a>
+               
+                </nav>
+            </div>
+            <div class="flex gap-2 flex-col justify-center items-center">
+                <a href="/profile"
+                    class="nav-item flex items-center p-3  rounded-lg hover:bg-gray-300 hover:text-primary transition-colors group relative">
+                    <span class="nav-icon text-xl"><i class="ri-user-line"></i></span>
+                    <span
+                        class="absolute left-12 top-1/2 transform -translate-y-1/2 bg-gray-900 text-white text-xs px-4 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10 ">Profile</span>
+                </a>
+                <form action="/logout" method="post" class="flex gap-2 flex-col justify-center items-center">
+                    <button type="submit"
+                        class="nav-item flex items-center p-3  rounded-lg hover:bg-gray-300 hover:text-primary transition-colors group relative">
+                        <span class="nav-icon text-xl"><i class="ri-logout-box-line"></i></span>
+                        <span
+                            class="absolute left-12 top-1/2 transform -translate-y-1/2 bg-gray-900 text-white text-xs px-4 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10 ">Logout</span>
+                    </button>
+                </form>
+            </div>
+        </aside>
+        <div class="overflow-auto px-4 w-full">
+            <div class="container mx-auto bg-white shadow rounded">
+                <div class="bg-secondary/90 px-8 pb-72 rounded-xl ">
+                    <header class="py-10">
+                        <div class="mx-auto max-w-7xl-4">
+                            <h1 class="text-3xl font-bold tracking-tight text-primary tracking-wide">
+                                Your Payslips
+                            </h1>
+                        </div>
+                    </header>
+                </div>
+                <div class="-mt-72 p-8 bg-white mx-4 rounded-xl">
+                    <div class="flex items-center space-x-4 mb-4">
+                        <!-- Year Dropdown -->
+                        <select id="yearSelect" class="px-4 py-2 border rounded" onchange="updateMonths()">
+                            <option value="" disabled selected>Select Year</option>
+                        </select>
+                    
+                        <!-- Month Dropdown -->
+                        <select id="monthSelect" class="px-4 py-2 border rounded">
+                            <option value="" disabled selected>Select Month</option>
+                        </select>
+                    
+                    
+                        <!-- Submit Button -->
+                        <button onclick="loadPDF()" class="px-4 py-2 bg-blue-500 text-white rounded">View Payslip</button>
+                    </div>
+                    
+                    <!-- PDF Viewer -->
+                    <iframe id="pdfFrame" class="hidden w-full h-[800px] border rounded"></iframe>
+                    
+                    <!-- Error Message -->
+                    <div id="errorMessage" class="hidden bg-red-500 text-white p-2 mt-3 rounded">
+                        Payslip not available. Please contact HR.
+                    </div>
+       
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- <script src="../static/payslip.js"></script> -->
+    <script>
+        const yearSelect = document.getElementById("yearSelect");
+        const monthSelect = document.getElementById("monthSelect");
+        const pdfFrame = document.getElementById("pdfFrame");
+        const errorMessage = document.getElementById("errorMessage");
+        const currentYear = new Date().getFullYear();
+        const currentMonth = new Date().getMonth() + 1; // Months are 0-indexed in JS
+        const user_id = "{{ user_id }}";
+        // Populate Year Dropdown (from 2024 to current year)
+        for (let year = currentYear; year >= 2024; year--) {
+            let option = document.createElement("option");
+            option.value = year;
+            option.textContent = year;
+            yearSelect.appendChild(option);
+        }
+    
+        // Function to update months based on selected year
+        function updateMonths() {
+            monthSelect.innerHTML = '<option value="" disabled selected>Select Month</option>'; // Reset months
+            let selectedYear = parseInt(yearSelect.value);
+            let maxMonth = selectedYear === currentYear ? currentMonth : 12; // Restrict to current month if this year
+    
+            for (let month = 1; month <= maxMonth; month++) {
+                let option = document.createElement("option");
+                option.value = new Date(2024, month - 1).toLocaleString("default", { month: "long" }); // Convert number to month name
+                option.textContent = option.value;
+                monthSelect.appendChild(option);
+            }
+        }
+    
+        // Function to load the PDF
+        function loadPDF() {
+            let selectedYear = yearSelect.value;
+            let selectedMonth = monthSelect.value;
+        
+            if (!selectedYear || !selectedMonth) {
+                alert("Please select both Year and Month.");
+                return;
+            }
+        
+            let pdfURL = `/payslip/pdf?year=${selectedYear}&month=${selectedMonth}`;
+        
+            fetch(pdfURL, { method: "GET" })
+            .then(response => {
+                if (response.ok) {
+                    pdfFrame.src = pdfURL;
+                    pdfFrame.classList.remove("hidden");
+                    errorMessage.classList.add("hidden");
+                } else {
+                    throw new Error("PDF Not Found");
+                }
+            })
+            .catch(() => {
+                pdfFrame.classList.add("hidden");
+                errorMessage.classList.remove("hidden");
+            });
+        }
+        
+    </script>
+</body>
+
+</html>

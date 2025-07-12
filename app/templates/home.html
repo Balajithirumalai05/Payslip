@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Employee Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        /* Scrollbar styling */
+        .scrollable-div::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .scrollable-div::-webkit-scrollbar-track {
+            background: transparent;
+            border-radius: 10px;
+        }
+
+        .scrollable-div::-webkit-scrollbar-thumb {
+            background: #afafaf;
+            border-radius: 10px;
+        }
+
+        .scrollable-div::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+    </style>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#007BFF',
+                        secondary: '#00D4FF',
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+
+<body class="bg-gray-50">
+    <div class="flex h-screen overflow-hidden p-3">
+        <!-- Sidebar -->
+        <aside id="sidebar"
+            class="bg-zinc-200/80 rounded-lg py-5 relative flex flex-col justify-between w-16 min-w-[64px]">
+            <div class="300 flex flex-col justify-center items-center">
+                <div class="flex items-center gap-2 mb-8">
+                    <img src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/image-removebg-preview-15%201-G0lGat5BJUm8O34c0iVcGQ6iTs9gtn.png"
+                        alt="Company Logo" class="w-12 h-12 flex-shrink-0">
+                    <!-- <h1 class="text-2xl font-bold logo-text text-gray-900 whitespace-nowrap overflow-hidden">EmpDash -->
+                    </h1>
+                </div>
+                <nav class="space-y-2">
+                    <a href="/home"
+                        class="nav-item flex items-center p-3  rounded-lg bg-gray-300 text-primary transition-colors group relative">
+                        <span class="nav-icon text-xl"><i class="ri-home-line"></i></span>
+                        <span
+                            class="absolute left-12 top-1/2 transform -translate-y-1/2 bg-gray-900 text-white text-xs px-4 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10 ">Dashboard</span>
+                    </a>
+                   
+                  
+                    <a href="/payslip"
+                        class="nav-item flex items-center p-3  rounded-lg hover:bg-gray-300 hover:text-primary transition-colors group relative">
+                        <span class="nav-icon text-xl"><i class="ri-currency-fill"></i></span>
+                        <span
+                            class="absolute left-12 top-1/2 transform -translate-y-1/2 bg-gray-900 text-white text-xs px-4 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10 ">Payslip</span>
+                    </a>
+                  
+                </nav>
+            </div>
+            <div class="flex gap-2 flex-col justify-center items-center">
+                <a href="/profile"
+                    class="nav-item flex items-center p-3  rounded-lg hover:bg-gray-300 hover:text-primary transition-colors group relative">
+                    <span class="nav-icon text-xl"><i class="ri-user-line"></i></span>
+                    <span
+                        class="absolute left-12 top-1/2 transform -translate-y-1/2 bg-gray-900 text-white text-xs px-4 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10 ">Profile</span>
+                </a>
+                <form action="/logout" method="post" class="flex gap-2 flex-col justify-center items-center">
+                    <button type="submit"
+                        class="nav-item flex items-center p-3  rounded-lg hover:bg-gray-300 hover:text-primary transition-colors group relative">
+                        <span class="nav-icon text-xl"><i class="ri-logout-box-line"></i></span>
+                        <span
+                            class="absolute left-12 top-1/2 transform -translate-y-1/2 bg-gray-900 text-white text-xs px-4 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10 ">Logout</span>
+                    </button>
+                </form>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="flex-1 scrollable-div overflow-y-auto bg-zinc-100">
+            <div class="max-w-7xl mx-auto px-4">
+                <!-- Profile Card -->
+                <div
+                    class="bg-white rounded-xl shadow-sm p-6 mb-5 border border-gray-100 flex flex-col justify-between">
+                    <div class="flex justify-between items-center">
+                        <h1 class="text-3xl font-bold mb-2">Welcome back, <span id="employeeName"
+                                class="text-primary"></span></h1>
+                    </div>
+                    <div class="flex items-center gap-5">
+                        <div class="relative">
+                            <div id="employeeImage" class="group w-28 h-28 bg-slate-400 rounded-full object-cover">
+                                <img id="profileImage" src="app/uploads/{{profile.image_url}}" alt="Profile Picture"
+                                    class="w-full h-full rounded-3xl">
+                            </div>
+                            <input type="file" id="profilePictureInput" accept="image/*" style="display: none;">
+                            <button onclick="document.getElementById('profilePictureInput').click()" class="hidden">
+                                Upload Profile Picture
+                            </button>
+                        </div>
+                        <div class="flex items-center space-x-10 mt-3">
+                            <div class="space-y-2 text-sm text-gray-600">
+                                <p><strong class="text-[17px] font-medium">Role : </strong> <span id="employeeRole"
+                                        class="text-primary font-medium text-[17px]"></span></p>
+                                <p><strong class="text-[17px] font-medium">Age : </strong> <span id="employeeAge"
+                                        class="text-[16px]"></span></p>
+                                <p><strong class="text-[17px] font-medium">Date of Birth : </strong> <span
+                                        id="employeeDOB" class="text-[16px]"></span></p>
+                            </div>
+                            <div class="space-y-2 text-sm text-gray-600">
+                                <p><strong class="text-[17px] font-medium">Phone No. : </strong> <span
+                                        id="employeePhone" class="text-[16px]"></span></p>
+                                <p><strong class="text-[17px] font-medium">Email : </strong> <span id="employeeEmail"
+                                        class="text-[16px]"></span></p>
+                                <p><strong class="text-[17px] font-medium">Date of Join : </strong> <span
+                                        id="employeeDOJ" class="text-[16px]"></span></p>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- Quick Stats Grid -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
+                    <div class="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-gray-1500 text-sm">Working Days</h3>
+                            <i class="ri-calendar-line text-primary text-xl"></i>
+                        </div>
+                        <p id="workDays" class="text-3xl font-bold text-gray-900"></p>
+                        <p class="text-xs text-gray-1500 mt-2">This Year</p>
+                    </div>
+                    <div class="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-gray-1500 text-sm">Days in Troudz</h3>
+                            <i class="ri-calendar-line text-primary text-xl"></i>
+                        </div>
+                        <p id="workingDays" class="text-3xl font-bold text-gray-900"></p>
+                        <p class="text-xs text-gray-1500 mt-2">Since Join</p>
+                    </div>
+                    <div class="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-gray-1500 text-sm">Leave Taken</h3>
+                            <i class="ri-calendar-event-line text-secondary text-xl"></i>
+                        </div>
+                        <p id="leaveTaken" class="text-3xl font-bold text-gray-900"></p>
+                        <p class="text-xs text-gray-1500 mt-2">Out of 24 days</p>
+                    </div>
+                    <div class="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-gray-1500 text-sm">Projects</h3>
+                            <i class="ri-folder-line text-primary text-xl"></i>
+                        </div>
+                        <p id="activeProjects" class="text-3xl font-bold text-gray-900"></p>
+                        <p class="text-xs text-gray-1500 mt-2">Active projects</p>
+                    </div>
+                    <div class="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-gray-1500 text-sm">Performance</h3>
+                            <i class="ri-line-chart-line text-secondary text-xl"></i>
+                        </div>
+                        <p id="performance" class="text-3xl font-bold text-gray-900"></p>
+                        <p class="text-xs text-gray-1500 mt-2">Last 3 months</p>
+                    </div>
+                    <div class="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-gray-500 text-sm font-semibold">Upcoming Holidays</h3>
+                            <i class="ri-calendar-line text-secondary text-xl"></i>
+                        </div>
+                        <div id="holidays" class="space-y-3">
+                            {% if holidays %}
+                            {% for holiday in holidays %}
+                            <div class="flex items-center justify-between">
+                                <span class="text-sm font-small">{{ holiday.name }}</span>
+                                <span class="text-sm text-gray-500">{{ holiday.date }}</span>
+                            </div>
+                            {% endfor %}
+                            {% else %}
+                            <span class="text-gray-500">No upcoming holidays.</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-gray-500 text-sm font-semibold">Upcoming Birthdays</h3>
+                            <i class="ri-gift-line text-secondary text-xl"></i>
+                        </div>
+                        <div id="birthdays" class="space-y-3">
+                            {% if birthdays %}
+                                {% for birthday in birthdays %}
+                                    <div class="flex items-center justify-between">
+                                        <span class="text-sm font-small">{{ birthday.name }}</span>
+                                        <span class="text-sm text-gray-500">{{ birthday.date }}</span>
+                                    </div>
+                                {% endfor %}
+                            {% else %}
+                                <span class="text-gray-500">No upcoming birthdays.</span>
+                            {% endif %}
+                        </div>
+                    </div>
+
+
+
+                </div>
+
+                <!-- Additional Cards -->
+                
+
+                    <!-- Recent Activity -->
+
+                
+            </div>
+
+    </div>
+    </main>
+    </div>
+
+
+
+    <script src="../app/static/home-dashboard.js"></script>
+
+</body>
+
+</html>

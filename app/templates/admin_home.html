@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+</head>
+
+<body class="bg-gray-50">
+    <div class="flex h-screen overflow-hidden p-3">
+        <!-- Sidebar -->
+        <aside id="sidebar" class="bg-zinc-200/80 rounded-lg py-5 relative flex flex-col justify-between w-16 min-w-[64px]">
+            <div class="flex flex-col justify-center items-center">
+                <div class="flex items-center gap-2 mb-8">
+                    <img src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/image-removebg-preview-15%201-G0lGat5BJUm8O34c0iVcGQ6iTs9gtn.png" alt="Company Logo" class="w-12 h-12 flex-shrink-0">
+                </div>
+                <nav class="space-y-2">
+                    <a href="/admin/dashboard" class="nav-item flex items-center p-3 rounded-lg hover:bg-gray-300 hover:text-primary transition-colors group relative">
+                        <span class="nav-icon text-xl"><i class="ri-home-line"></i></span>
+                        <span class="absolute left-12 top-1/2 transform -translate-y-1/2 bg-gray-900 text-white text-xs px-4 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">Dashboard</span>
+                    </a>
+                    
+                    <a href="/emp-paylist" class="nav-item flex items-center p-3 rounded-lg hover:bg-gray-300 hover:text-primary transition-colors group relative">
+                        <span class="nav-icon text-xl"><i class="ri-bank-card-line"></i></span>
+                        <span class="absolute left-12 top-1/2 transform -translate-y-1/2 bg-gray-900 text-white text-xs px-4 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">Payroll</span>
+                    </a>
+
+                    <a href="/employee/add" class="nav-item flex items-center p-3 rounded-lg hover:bg-gray-300 hover:text-primary transition-colors group relative">
+                        <span class="nav-icon text-xl"><i class="ri-bank-card-line"></i></span>
+                        <span class="absolute left-12 top-1/2 transform -translate-y-1/2 bg-gray-900 text-white text-xs px-4 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">Add Employee</span>
+                    </a>
+                   
+                </nav>
+            </div>
+            <div class="flex flex-col items-center">
+                <form action="/admin/logout" method="post" class="flex gap-2 flex-col justify-center items-center">
+                    <button type="submit" class="nav-item flex items-center p-3 rounded-lg hover:bg-gray-300 hover:text-primary transition-colors group relative">
+                        <span class="nav-icon text-xl"><i class="ri-logout-box-line"></i></span>
+                        <span class="absolute left-12 top-1/2 transform -translate-y-1/2 bg-gray-900 text-white text-xs px-4 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">Logout</span>
+                    </button>
+                </form>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="flex-1 scrollable-div overflow-y-auto bg-zinc-100 p-6">
+            <h1 class="text-3xl font-bold">Admin Dashboard</h1>
+
+           
+        </main>
+    </div>
+
+    <script>
+        const ctx = document.getElementById('adminChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
+                datasets: [{
+                    label: 'Employee Growth',
+                    data: [10, 15, 20, 25, 30, 35],
+                    backgroundColor: 'rgba(0, 123, 255, 0.5)'
+                }]
+            }
+        });
+    </script>
+</body>
+
+</html>
