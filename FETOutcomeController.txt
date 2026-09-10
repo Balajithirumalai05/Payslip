@@ -1,0 +1,614 @@
+using WinDTO.Tasks;
+using Newtonsoft.Json;
+using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.Data;
+using System.Web.Http;
+using WINApiBase;
+using WINApiBase.Filters;
+using System.Linq;
+using System.Xml.Linq;
+using WinDTO;
+
+namespace WINApi.Controllers
+{
+    public class FETOutcomeController : ATSBaseController
+    {
+        #region Stored Procedures
+
+        private static string SP_GetData = "USP_Load_FETA_ATS";
+        private static string SP_Save = "USP_InsertCycleFETA_ATS";
+        private static string SP_InsertAttachments = "Usp_InsertAttachments_NEWATS";
+
+        public string sTaskId { get; set; }
+
+        #endregion
+
+        #region Methods
+
+        /* --- Load Method --- */
+        [HttpPost]
+        [ValidateFilter, ExceptionFilter]
+        public string SaveAttachments()
+        {
+            string status="";
+            try
+            {
+                AttachmentsInputDetails objSaveAttachmentsInput = ATSParams?.ToJsonObject<AttachmentsInputDetails>();
+                Dictionary<string, object> args = new Dictionary<string, object>();
+                args.Add("@TaskId", objSaveAttachmentsInput?.TaskID ?? "");
+                args.Add("@OutId", objSaveAttachmentsInput?.OutID ?? "");
+                args.Add("@Attach1", objSaveAttachmentsInput?.AttachmentPath1 ?? "");
+                args.Add("@Attach2", objSaveAttachmentsInput?.AttachmentPath2 ?? "");
+                args.Add("@Attach3", objSaveAttachmentsInput?.AttachmentPath3 ?? "");
+                int result = ExecuteNonQuery(SP_InsertAttachments, objSaveAttachmentsInput?.Contract ?? "", args);
+                status = APIResponseStatus.APIResponse(result);
+                
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("An error occurred: " + ex.Message);
+            }
+            return status;
+        }
+        [HttpPost]
+        [ValidateFilter, ExceptionFilter]
+        public string InsertAttachments(FET objMedicalAuthDetails, string TaskId)
+        {
+            try
+            {
+                Dictionary<string, object> _args = new Dictionary<string, object>();
+                XDocument attchitems = new XDocument(new XElement("AttachItems"));
+                // byte[] pdfbytes = null;
+                if (objMedicalAuthDetails.NextTask.Attachments != null)
+                {
+                    foreach (var attachItem in objMedicalAuthDetails?.NextTask?.Attachments)
+                    {
+                        //if(attachItem!=null)
+                        //{
+                        //    pdfbytes = System.Convert.FromBase64String(attachItem.Additional);
+                        //}
+                        attchitems.Root.Add(new XElement("Item",
+                            new XAttribute("FaxId", attachItem.ID ?? "0"),
+                            new XAttribute("AttachmentPath", attachItem.Tag ?? "")
+                            //   new XAttribute("Bytes", pdfbytes)
+                            )
+                            );
+                    }
+
+                    _args.Add("@TaskId", TaskId);
+                    _args.Add("@AttachItems", attchitems.ToString());
+                    // string result = string.Empty;
+                    //result = 
+                    ExecuteNonQuery(SP_InsertAttachments, objMedicalAuthDetails?.ScreenArgs?.Contract ?? "", _args);
+                    return "";
+                }
+                else
+                {
+                    return "";
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("An error occurred: " + ex.Message);
+                return "";
+            }
+        }
+
+        [HttpPost]
+        [ValidateFilter, ExceptionFilter]
+        public FET GetData()
+        {
+            TaskScreenArgs objTaskScreenArgs = ATSParams?.ToJsonObject<TaskScreenArgs>();
+
+            /* --- Check if alreday task was existed  -- */
+            string TaskIDTaskName = string.Empty;
+            TaskController objTaskController = new TaskController();
+            TaskIDTaskName = objTaskController.CheckTask(objTaskScreenArgs?.AuthNumber ?? "", "Outcome", objTaskScreenArgs?.Contract ?? "");
+            if (TaskIDTaskName == "")
+            {
+                if (objTaskScreenArgs.UserRole == "CSA") { objTaskScreenArgs.TaskName = "Enter Outcome"; }
+                if (objTaskScreenArgs.UserRole == "RN") { objTaskScreenArgs.TaskName = "Certify Outcome"; }
+                /* --- Create Task -- */
+                objTaskScreenArgs.TaskID = objTaskController.Create(objTaskScreenArgs?.Contract ?? "", "Infertility", objTaskScreenArgs?.MemberID ?? "", objTaskScreenArgs?.UserName ?? "",
+                    objTaskScreenArgs?.TaskName ?? "", "My Personal Queue", objTaskScreenArgs?.AuthNumber ?? "", "C", "", "Medium","");
+            }
+            else
+            {
+                int i = 0;
+                i = TaskIDTaskName.IndexOf(",");
+                objTaskScreenArgs.TaskID = TaskIDTaskName.Substring(0, i);
+                objTaskScreenArgs.TaskName = TaskIDTaskName.Substring(i + 1);
+            }
+            //objTaskController.LockTask(objTaskScreenArgs.Contract, objTaskScreenArgs.UserName, objTaskScreenArgs.TaskID, objTaskScreenArgs.MemberID, "Lock Task");
+
+            Dictionary<string, object> args = new Dictionary<string, object>();
+            args.Add("@AuthNo", objTaskScreenArgs?.FormattedAuthNumber ?? "");
+            args.Add("@MemberId", objTaskScreenArgs?.MemberID ?? "");
+            args.Add("@OutId", objTaskScreenArgs?.OutPatientID ?? "");
+            FET objFET = new FET()
+            {
+                TaskDetails = new OutcomeTaskDetails(),
+                NextTask = new NextTaskDetails(),
+                ServiceData = new WinDTO.Tasks.OutcomeServiceData(),
+                Cancellation = new WinDTO.Tasks.OutcomeCancellationSection(),
+                Complications = new WinDTO.Tasks.OutcomeComplicationsSection(),
+                PregnancyResults = new WinDTO.Tasks.OutcomePregnancyResultSection(),
+                ScreenArgs = objTaskScreenArgs,
+                DateValidationCallback = null
+            };
+            try
+            {
+                using (DataSet ds = ExecuteDB(SP_GetData, objTaskScreenArgs?.Contract ?? "", args))
+                {
+                    if (ds != null && ds.Tables.Count > 0)
+                    {
+                        /* ---  Inf Auth Service  ---  */
+                        if (ds.Tables[0].Rows.Count > 0)
+                        {
+                            DataRow AuthService = ds.Tables[0].Rows[0];
+                            if (AuthService.Table.Rows.Count > 0)
+                            {
+                                objFET.TaskDetails.Speciality = AuthService?.Value<string>("Speciality") ?? "";
+                                objFET.TaskDetails.OutPatientID = AuthService?.Value<string>("OutpatientID") ?? "";
+                                objFET.TaskDetails.ProcedureCode = AuthService?.Value<string>("Code") ?? "";
+                                objFET.TaskDetails.IDC9Code = AuthService?.Value<string>("ICD9Code") ?? "";
+                                objFET.TaskDetails.Provider = AuthService?.Value<string>("SerProName") ?? "";
+                                objFET.TaskDetails.GroupName = AuthService?.Value<string>("GroupName") ?? "";
+                                objFET.TaskDetails.DateFrom = string.Compare("", AuthService?.Value<string>("ReqFromDate") ?? "", true) == 0 ? Convert.ToDateTime(DateTime.Now).ToString("MM/dd/yyyy") : Convert.ToDateTime(AuthService.Value<string>("ReqFromDate")).ToString("MM/dd/yyyy");
+                                objFET.TaskDetails.DateTo = string.Compare("", AuthService?.Value<string>("ReqToDate") ?? "", true) == 0 ? Convert.ToDateTime(DateTime.Now).ToString("MM/dd/yyyy") : Convert.ToDateTime(AuthService.Value<string>("ReqToDate")).ToString("MM/dd/yyyy");
+                                objFET.ServiceData.OutcomeStatus = AuthService?.Value<string>("WStatus") ?? "";
+                                objFET.TaskDetails.WorkflowStep = AuthService?.Value<string>("WorkflowStep") ?? "";
+                                objFET.AuthHeaderDetails.AuthType = AuthService?.Value<string>("AuthType") ?? "";
+                                if ((objTaskScreenArgs?.TaskName ?? "") == "Enter Outcome") { objFET.TaskDetails.WorkflowStep = "Outcome Setup"; }
+                                else { objFET.TaskDetails.WorkflowStep = "Outcome Review"; }
+                                if ((objFET?.TaskDetails?.WorkflowStep ?? "") == "") { objFET.TaskDetails.WorkflowStep = "Incomplete"; }
+                                if ((objFET?.ScreenArgs?.OutPatientID ?? "") == "") { objFET.ScreenArgs.OutPatientID = objFET.TaskDetails.OutPatientID; }
+                            }
+                        }
+                        /* ---  Attachments  ---  */
+                        if (ds.Tables[1].Rows.Count > 0)
+                        {
+                            DataTable Attachments = ds.Tables[1];
+                            objFET.NextTask.Attachments = new List<WinDTO.ObjectBase>();
+                            foreach (DataRow dr in Attachments.Rows)
+                            {
+                                objFET.NextTask.Attachments.Add(new WinDTO.ObjectBase()
+                                {
+                                    ID = dr?.Value<string>("FaxID") ?? "",
+                                    Text = dr?.Value<string>("Attachment") ?? "",
+                                    Tag = dr?.Value<string>("LinkTODoc") ?? ""
+                                });
+                            }
+                        }
+                        /* ---  Auth Reasons  ---  */
+                        if (ds.Tables[2].Rows.Count > 0)
+                        {
+                            DataTable AuthReasons = ds.Tables[2];
+                            objFET.TaskDetails.Reasons = new List<WinDTO.ObjectBase>();
+                            foreach (DataRow dr in AuthReasons.Rows)
+                            {
+                                objFET.TaskDetails.Reasons.Add(new WinDTO.ObjectBase()
+                                {
+                                    ID = dr?.Value<string>("ReaonCode") ?? "",
+                                    Text = dr?.Value<string>("ReasonDesc") ?? ""
+                                });
+                            }
+                        }
+                        /* ---  Inf Cycle History  ---  */
+                        if (ds.Tables[3].Rows.Count > 0)
+                        {
+                            DataRow infcycleHx = ds.Tables[3].Rows[0];
+                            if (infcycleHx.Table.Rows.Count > 0)
+                            {
+                                /* ---  Header Section  ---   */
+                                objFET.TaskDetails.OutcomeStartDate = infcycleHx?.Value<string>("OutcomeReceivedDate") ?? "";
+                                objFET.ServiceData.AdjudicatedService = infcycleHx?.Value<string>("CycleType") ?? "";
+                                objFET.TaskDetails.PreviousNotes = infcycleHx?.Value<string>("OutcomeNotes") ?? "";
+                                /* ---   Section 1  ---   */
+                                objFET.Cancellation.CancelReason = new WinDTO.ObjectBase() { ID = infcycleHx.Value<string>("CancellationReason") ?? "" };
+                                objFET.Cancellation.OtherCancelReason = infcycleHx?.Value<string>("CancellationDescOther") ?? "";
+                                /* ---   Section 2  ---   */
+                                objFET.LMPStartDate = infcycleHx?.Value<string>("LMPStartDate") ?? "";
+                                objFET.InitialUltrasoundDate = infcycleHx?.Value<string>("InitialUltrasoundDate") ?? "";
+                                objFET.FETCancelDate = infcycleHx?.Value<string>("FETCancellationDate") ?? "";
+                                /* ---   Section 4  ---   */
+                                objFET.AssistedHatchingDate = infcycleHx?.Value<string>("AssistedHatchingDate") ?? "";
+                                objFET.EmbryosHatched = infcycleHx?.Value<string>("NumEmbryosHatched") ?? "";
+                                /* ---   Section 5  ---   */
+                                objFET.TransferDate = infcycleHx?.Value<string>("TransferDate") ?? "";
+                                objFET.EndometrialThickness = infcycleHx?.Value<string>("EndometrialThickness") ?? "";
+                                objFET.EmbryosAvailableForThaw = infcycleHx?.Value<string>("NumEmbryosAvailableForThaw") ?? "";
+                                objFET.EmbryosThawed = infcycleHx?.Value<string>("Thawed") ?? "";
+                                objFET.EmbryosSurvivedThaw = infcycleHx?.Value<string>("NumEmbryosSurvivedThaw") ?? "";
+                                objFET.EmbryosRemainingFrozen = infcycleHx?.Value<string>("FrozenNum") ?? "";
+                                objFET.Quality = infcycleHx?.Value<string>("EmbryoQuality") ?? "";
+                                objFET.EmbryosTransferedToUterus = infcycleHx?.Value<string>("TranNum") ?? "";
+
+                                /* ---   Section 6  ---   */
+                                objFET.Complications.AnestheticComplication = string.Compare("Y", infcycleHx.Value<string>("CompAnesthetic") ?? "", true) == 0;
+                                objFET.Complications.Death = string.Compare("Y", infcycleHx.Value<string>("CompDeath") ?? "", true) == 0;
+                                objFET.Complications.Infection = string.Compare("Y", infcycleHx.Value<string>("CompInfection") ?? "", true) == 0;
+                                objFET.Complications.MedicationSideEffect = string.Compare("Y", infcycleHx.Value<string>("CompMedication") ?? "", true) == 0;
+                                objFET.Complications.NoComplications = string.Compare("Y", infcycleHx.Value<string>("CompNone") ?? "", true) == 0;
+                                objFET.Complications.PsychologicalStress = string.Compare("Y", infcycleHx.Value<string>("CompPsych") ?? "", true) == 0;
+                                objFET.Complications.OtherComplication = string.Compare("Y", infcycleHx.Value<string>("CompOther") ?? "", true) == 0;
+                                objFET.Complications.Hyperstimulation = infcycleHx.Value<string>("Hyperstimulation") ?? "";
+                                /* ---   Section 7  ---   */
+                                objFET.PregnancyResults.BetaHCG = infcycleHx?.Value<string>("BetaHCG") ?? "";
+                                objFET.PregnancyResults.BETAnHCGPositiveResult = infcycleHx?.Value<string>("BetaHCGResult") ?? "";
+                                objFET.PregnancyResults.Chemical = string.Compare("Y", infcycleHx?.Value<string>("Chemical") ?? "", true) == 0;
+                                objFET.PregnancyResults.BETAnHCGPositiveGestationsCount = infcycleHx?.Value<string>("GestNum") ?? "";
+                                objFET.PregnancyResults.UltrasoundDate = infcycleHx?.Value<string>("PregancyUltrasoundDate") ?? "";
+                                objFET.PregnancyResults.FetalHearts = infcycleHx?.Value<string>("MaximumNumFetalHearts") ?? "";
+                                objFET.PregnancyResults.FetalHeartRate = infcycleHx?.Value<string>("FetalHeartRate") ?? "";
+                                objFET.PregnancyResults.Ectopic = string.Compare("Y", infcycleHx.Value<string>("Ectopic") ?? "", true) == 0;
+                                objFET.PregnancyResults.RequiresMedicalTreatment = string.Compare("Y", infcycleHx.Value<string>("EctopicReqMedicalTreatment") ?? "", true) == 0;
+                                objFET.PregnancyResults.RequiresSurgicalIntervention = string.Compare("Y", infcycleHx.Value<string>("EctopicReqSurgIntervention") ?? "", true) == 0;
+                                objFET.PregnancyResults.SpontaneousAB = string.Compare("Y", infcycleHx.Value<string>("SpontaneousAB") ?? "", true) == 0;
+                            }
+                        }
+                        /* ---  Inf Rx Hx  ---  */
+                        if (ds.Tables[4].Rows.Count > 0)
+                        {
+                            DataTable infRxHx = ds.Tables[4];
+                            foreach (DataRow dr in infRxHx.Rows)
+                            {
+                                string checkvalue = string.Empty;
+                                /* ---   Section 3  ---   */
+                                objFET.MedicationStartDate = dr?.Value<string>("MedicationStartDate") ?? "";
+                                objFET.MedicationCancelDate = dr?.Value<string>("MedicationCancelledDate") ?? "";
+                                checkvalue = dr?.Value<string>("DrugName") ?? "";
+                                switch (checkvalue)
+                                {
+                                    case "Progesterone":
+                                        objFET.ProgesteroneDosage = dr?.Value<float>("NumDays").ToString("F0").IgnoreZero();
+                                        objFET.ProgesteroneDosageDays = dr?.Value<float>("NumUnits").ToString("F0").IgnoreZero();
+                                        break;
+                                    case "Estradiol":
+                                        objFET.EstradiolDosage = dr?.Value<string>("MedicationType") ?? "";
+                                        break;
+                                    default:
+                                        objFET.ProgesteroneDosageOther = checkvalue;
+                                        objFET.ProgesteroneDosageSignature = dr.Value<string>("SpecialInstructions") ?? "";
+                                        checkvalue = "";
+                                        break;
+                                }
+                                checkvalue = "";
+                            }
+                        }
+                        /* ---  Inf outcome status  ---  */
+                        if (ds.Tables[5].Rows.Count > 0)
+                        {
+                            DataRow infOutcomeStatus = ds.Tables[5].Rows[0];
+                            if (infOutcomeStatus.Table.Rows.Count > 0)
+                            {
+                                objFET.ServiceData.AdjudicatedService = infOutcomeStatus?.Value<string>("AdjudicatedService") ?? "";
+                                objFET.ServiceData.OutcomeStatus = infOutcomeStatus?.Value<string>("ReasonDesc") ?? "";
+                                if (objFET.ServiceData.OutcomeStatus == "Nurse Certified")
+                                {
+                                    objFET.ServiceData.RNAdjudication = true;
+                                }
+                            }
+                        }
+                        /* ---  Inf Initial Service  ---  */
+                        if (ds.Tables[6].Rows.Count > 0)
+                        {
+                            DataRow infInitilaService = ds.Tables[6].Rows[0];
+                            if (infInitilaService.Table.Rows.Count > 0)
+                            {
+                                objFET.ServiceData.InitialCPTCode = infInitilaService?.Value<string>("InitialCPTCode") ?? "";
+                                objFET.ServiceData.InitialHCPCCode = infInitilaService?.Value<string>("InitialHCPCSCode") ?? "";
+                                objFET.ServiceData.OldOutPatientID = infInitilaService?.Value<string>("BaseId") ?? "";
+                                objFET.ScreenArgs.AuthNumber = infInitilaService?.Value<string>("AuthNo") ?? "";
+                            }
+                        }
+                        /* ---  Get Work Queue  ---  */
+                        objFET.WorkQueues = new List<ObjectBase>();
+                        objFET.WorkQueues = objTaskController.TaskTo(objTaskScreenArgs?.Contract ?? "");
+                        //objFET.WorkQueues = new List<ObjectBase>();
+                        //if (WorkQueue != null && WorkQueue.Rows.Count > 0)
+                        //{
+                        //    foreach (DataRow row in WorkQueue.Rows)
+                        //    {
+                        //        objFET.WorkQueues.Add(new ObjectBase()
+                        //        {
+                        //            ID = row.Value<string>("Name"),
+                        //            Text = row.Value<string>("TaskTo")
+                        //        });
+                        //    }
+                        //}
+                        /* ---  Get Auth Reasons  ---  */
+                        DataTable GetAuthReasons = objTaskController.GetReasonCodes("Outcome" + objTaskScreenArgs?.UserRole ?? "", objTaskScreenArgs?.Contract ?? "", objTaskScreenArgs?.UserName ?? "", objTaskScreenArgs?.TaskName ?? "", objTaskScreenArgs?.MemberID ?? "");
+                        objFET.AuthReasons = new List<WinDTO.ObjectBase>();
+                        foreach (DataRow dr in GetAuthReasons.Rows)
+                        {
+                            objFET.AuthReasons.Add(new WinDTO.ObjectBase()
+                            {
+                                ID = dr.Value<string>("ReasonCode") ?? "",
+                                Text = dr.Value<string>("ReasonDesc") ?? "",
+                            });
+                        }
+                    }
+                };
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("An error occurred: " + ex.Message);
+            }
+            return objFET;
+        }
+
+        /* --- Save Method --- */
+        [HttpPost]
+        [ValidateFilter, ExceptionFilter]
+        public object Save()
+        {
+            FET objFET = ATSParams?.ToJsonObject<FET>();
+            Dictionary<string, object> args = new Dictionary<string, object>();
+
+            /* --- Get Latest OutPatientID -- */
+            string CancelReason = string.Empty;
+            string SelectedCptcode = string.Empty;
+            string LatestOutPatientID = string.Empty;
+            try
+            {
+                if (objFET.ServiceData.AdjudicatedService == "SNR")
+                {
+                    CancelReason = "Services not rendered";
+                    SelectedCptcode = "SNR";
+                }
+                else if (objFET.ServiceData.AdjudicatedService == "S4017-TF")
+                {
+                    CancelReason = "Cancelled At Baseline";
+                    SelectedCptcode = "ITCS";
+                }
+                else if (objFET.ServiceData.AdjudicatedService == "S4040-TF")
+                {
+                    CancelReason = "Cancelled after medication";
+                    SelectedCptcode = "FETAC";
+                }
+                else if (objFET.ServiceData.AdjudicatedService == "S4037-TG")
+                {
+                    CancelReason = "FET";
+                    SelectedCptcode = "FET";
+                }
+                else
+                {
+                    CancelReason = "";
+                    SelectedCptcode = "";
+                }
+
+                OutcomeController objOutcomeController = new OutcomeController();
+                try
+                {
+                      if ((objFET.ScreenArgs.UserRole == "RN" && objFET.ServiceData.OutcomeStatus == "Nurse Certified") || SelectedCptcode == "SNR")
+                    {
+                        LatestOutPatientID = objOutcomeController.GetLatestOutPatientId(objFET.ScreenArgs?.MemberID ?? "", objFET.ScreenArgs?.Contract ?? "",
+                            objFET.TaskDetails?.Speciality ?? "", objFET.ServiceData?.InitialCPTCode ?? "", objFET.ScreenArgs?.AuthNumber ?? "",
+                            objFET.ScreenArgs?.OutPatientID ?? "", SelectedCptcode, CancelReason,
+                            objFET.ScreenArgs?.UserName ?? "", objFET.ServiceData?.OldOutPatientID ?? "");
+                    }
+
+                    /* ---  header section  --- */
+                    args.Add("@Mode", "");
+                    args.Add("@AuthNo", objFET.ScreenArgs?.AuthNumber ?? "", DBNull.Value);
+                    args.Add("@MemberID", objFET.ScreenArgs?.MemberID ?? "", DBNull.Value);
+                    args.Add("@TimeOfEntry", DateTime.Now.ToString() ?? "");
+                    args.Add("@Contract", objFET.ScreenArgs?.Contract ?? "");
+                    args.Add("@Specialty", objFET.TaskDetails?.Speciality ?? "");
+                    args.Add("@UserName", objFET.ScreenArgs?.UserName ?? "");
+                    args.Add("@ServiceID", objFET.ScreenArgs?.OutPatientID ?? "", DBNull.Value);
+                    args.Add("@OldId", objFET.ScreenArgs?.OutPatientID ?? "", DBNull.Value);
+                    args.Add("@CycleNum", 0);
+                    args.Add("@OutcomeReceivedDate", objFET.TaskDetails?.OutcomeStartDate ?? "", DBNull.Value);
+                    args.Add("@CycleType", objFET.ServiceData?.CPTCode ?? "");
+                    args.Add("@SNR", (string.Compare("SNR", objFET.ServiceData?.AdjudicatedService ?? "", true) == 0) ? 1 : 0);
+                    args.Add("@SNRCovidReason", objFET.ScreenArgs?.SNRReason ?? "", DBNull.Value);
+                    args.Add("@DurationFromDate", objFET.TaskDetails?.DateFrom ?? "", DBNull.Value);
+                    args.Add("@DurationToDate", objFET.TaskDetails?.DateTo ?? "", DBNull.Value);
+                    args.Add("@OutcomeStatus", objFET.ServiceData?.OutcomeStatus ?? "", DBNull.Value);
+
+                    /* ---  inf Cycle Hx  --- */
+                    /* ---  Section 1  --- */
+                    args.Add("@CancellationReason", (objFET.Cancellation?.CancelReason == null ? "" : (objFET.Cancellation?.CancelReason.ID ?? "")));
+                    args.Add("@CancellationDescOther", objFET.Cancellation?.OtherCancelReason ?? "");
+                    /* ---  Section 2  --- */
+                    args.Add("@LMPStartDate", objFET?.LMPStartDate ?? "", DBNull.Value);
+                    args.Add("@InitialUltrasoundDate", objFET?.InitialUltrasoundDate ?? "", DBNull.Value);
+                    args.Add("@FETCancellationDate", objFET?.FETCancelDate ?? "", DBNull.Value);
+                    /* ---  Section 4  --- */
+                    args.Add("@AssistedHatchingDate", objFET?.AssistedHatchingDate ?? "", DBNull.Value);
+                    args.Add("@NumEmbryosHatched", objFET?.EmbryosHatched ?? "");
+                    /* ---  Section 5  --- */
+                    args.Add("@TransferDate", objFET?.TransferDate ?? "", DBNull.Value);
+                    args.Add("@EndometrialThickness", objFET?.EndometrialThickness ?? "", DBNull.Value);
+                    args.Add("@NumEmbryosAvailableForThaw", objFET?.EmbryosAvailableForThaw ?? "", DBNull.Value);
+                    args.Add("@Thawed", objFET?.EmbryosThawed ?? "", DBNull.Value);
+                    args.Add("@NumEmbryosSurvivedThaw", objFET?.EmbryosSurvivedThaw ?? "", DBNull.Value);
+                    args.Add("@FrozenNum", objFET?.EmbryosRemainingFrozen ?? "", DBNull.Value);
+                    args.Add("@EmbryoQuality", objFET?.Quality ?? "", DBNull.Value);
+                    args.Add("@TranNum", objFET?.EmbryosTransferedToUterus ?? "");
+                    /* ---  Section 6  --- */
+                    args.Add("@CompNone", objFET.Complications.NoComplications ? "Y" : "N");
+                    args.Add("@CompMedication", objFET.Complications.MedicationSideEffect ? "Y" : "N");
+                    args.Add("@CompPsych", objFET.Complications.PsychologicalStress ? "Y" : "N");
+                    args.Add("@CompInfection", objFET.Complications.Infection ? "Y" : "N");
+                    args.Add("@CompDeath", objFET.Complications.Death ? "Y" : "N");
+                    args.Add("@CompOther", objFET.Complications.OtherComplication ? "Y" : "N");
+                    /* ---  Section 7  --- */
+                    args.Add("@BetaHCG", objFET.PregnancyResults?.BetaHCG ?? "");
+                    args.Add("@Chemical", objFET.PregnancyResults.Chemical ? "Y" : "N");
+                    args.Add("@BetaHCGResult", objFET.PregnancyResults?.BETAnHCGPositiveResult ?? "", DBNull.Value);
+                    args.Add("@GestNum", objFET.PregnancyResults?.BETAnHCGPositiveGestationsCount ?? "", DBNull.Value);
+                    args.Add("@PregancyUltrasoundDate", objFET.PregnancyResults?.UltrasoundDate ?? "", DBNull.Value);
+                    args.Add("@MaximumNumFetalHearts", objFET.PregnancyResults?.FetalHearts ?? "", DBNull.Value);
+                    args.Add("@FetalHeartRate", objFET.PregnancyResults?.FetalHeartRate ?? "", DBNull.Value);
+                    args.Add("@EctopicReqMedicalTreatment", objFET.PregnancyResults.RequiresMedicalTreatment ? "Y" : "N");
+                    args.Add("@EctopicReqSurgIntervention", objFET.PregnancyResults.RequiresSurgicalIntervention ? "Y" : "N");
+                    args.Add("@Ectopic", objFET.PregnancyResults.Ectopic ? "Y" : "N");
+                    args.Add("@SpontaneousAB", objFET.PregnancyResults.SpontaneousAB ? "Y" : "N");
+                    /* ---  footer section  --- */
+                    args.Add("@OutcomeNotes", objFET.NextTask?.Notes ?? "");
+
+                    /* --- Save Outcome -- */
+                    ExecuteNonQuery(SP_Save, objFET.ScreenArgs?.Contract ?? "", args);
+
+                }
+                catch { }
+                ///* --- Get Latest OutPatientID -- */
+                //string CancelReason = string.Empty;
+                //string SelectedCptcode = string.Empty;
+                //string LatestOutPatientID = string.Empty;
+                //if (objFET.ServiceData.AdjudicatedService == "SNR")
+                //{
+                //    CancelReason = "Services not rendered";
+                //    SelectedCptcode = "SNR";
+                //}
+                //else if (objFET.ServiceData.AdjudicatedService == "S4017-TF")
+                //{
+                //    CancelReason = "Cancelled At Baseline";
+                //    SelectedCptcode = "ITCS";
+                //}
+                //else if (objFET.ServiceData.AdjudicatedService == "S4040-TF")
+                //{
+                //    CancelReason = "Cancelled after medication";
+                //    SelectedCptcode = "FETAC";
+                //}
+                //else if (objFET.ServiceData.AdjudicatedService == "S4037-TG")
+                //{
+                //    CancelReason = "FET";
+                //    SelectedCptcode = "FET";
+                //}
+                //else
+                //{
+                //    CancelReason = "";
+                //    SelectedCptcode = "";
+                //}
+
+                //OutcomeController objOutcomeController = new OutcomeController();
+
+                //if ((objFET.ScreenArgs.UserRole == "RN" && objFET.ServiceData.OutcomeStatus == "Nurse Certified") || SelectedCptcode == "SNR")
+                //{
+                //    LatestOutPatientID = objOutcomeController.GetLatestOutPatientId(objFET.ScreenArgs.MemberID, objFET.ScreenArgs.Contract,
+                //        objFET.TaskDetails.Speciality, objFET.ServiceData.InitialCPTCode, objFET.ScreenArgs.AuthNumber,
+                //        objFET.ScreenArgs.OutPatientID, SelectedCptcode, CancelReason,
+                //        objFET.ScreenArgs.UserName, objFET.ServiceData.OldOutPatientID);
+                //}
+                /* --- Save Rx Data -- */
+                try
+                {
+                    if (string.IsNullOrWhiteSpace(objFET.ProgesteroneDosage) == false)
+                    {
+                        objOutcomeController.SaveRx(objFET?.ScreenArgs?.AuthNumber ?? "", objFET?.ScreenArgs?.MemberID ?? "", "Progesterone",
+                            objFET?.ProgesteroneDosage ?? "", objFET?.ProgesteroneDosage ?? "", objFET?.MedicationStartDate ?? "", objFET?.MedicationCancelDate ?? "",
+                            "", "", objFET?.ProgesteroneDosageDays ?? "", "", objFET?.ScreenArgs?.Contract ?? "");
+                    }
+                    /*  --- Estradiol Injectable, Oral, Patch, Vaginal ---  */
+                    if (string.IsNullOrWhiteSpace(objFET.EstradiolDosage) == false)
+                    {
+                        objOutcomeController.SaveRx(objFET.ScreenArgs?.AuthNumber ?? "", objFET.ScreenArgs?.MemberID ?? "", "Estradiol",
+                            "", "", objFET?.MedicationStartDate ?? "", objFET?.MedicationCancelDate ?? "",
+                            "", objFET?.EstradiolDosage ?? "", "", "", objFET?.ScreenArgs?.Contract ?? "");
+                    }
+                    if (string.IsNullOrWhiteSpace(objFET.ProgesteroneDosageOther) == false)
+                    {
+                        objOutcomeController.SaveRx(objFET.ScreenArgs?.AuthNumber ?? "", objFET?.ScreenArgs?.MemberID ?? "", objFET?.ProgesteroneDosageOther ?? "",
+                            "", "", objFET?.MedicationStartDate ?? "", objFET?.MedicationCancelDate ?? "",
+                            objFET?.ProgesteroneDosageSignature ?? "", "", "", "", objFET?.ScreenArgs?.Contract ?? "");
+                    }
+                }
+                catch { }
+                /* --- Save Outcome Status -- */
+                string AdjudicatedCost = string.Empty;
+                if (objFET.ServiceData.OutcomeStatus == "Missing Information")
+                {
+                    AdjudicatedCost = "0";
+                }
+                else
+                {
+                    AdjudicatedCost = "1";
+                }
+                objOutcomeController.SaveStatus(objFET?.ScreenArgs?.MemberID ?? "", objFET?.ScreenArgs?.AuthNumber ?? "",
+                    objFET?.ServiceData?.OutcomeStatus ?? "", objFET?.ServiceData?.OutcomeStatus ?? "",
+                    objFET?.ServiceData?.AdjudicatedService ?? "", AdjudicatedCost, objFET?.ScreenArgs?.UserName ?? "", objFET?.ScreenArgs?.Contract ?? "");
+                ///* --- Save Outcome Received -- */
+                //objOutcomeController.SaveReceived(objFET.ScreenArgs.Contract, objFET.ScreenArgs.UserName, objFET.ScreenArgs.AuthNumber,
+                //    objFET.ScreenArgs.MemberID, objFET.ServiceData.AdjudicatedService, objFET.TaskDetails.Speciality);
+                /* --- Move Pended Task -- */
+                objOutcomeController.MovePendedTask("TaskMove", objFET?.ScreenArgs?.MemberID ?? "", objFET?.ScreenArgs?.AuthNumber ?? "", objFET?.ScreenArgs?.TaskID ?? "",
+                    objFET?.ScreenArgs?.UserName ?? "", objFET?.ScreenArgs?.Contract ?? "");
+                /* --- Edit Task -- */
+                TaskController objTaskController = new TaskController();
+                try
+                {
+                    if ((objFET.ScreenArgs.UserRole != "RN") && SelectedCptcode == "SNR")
+                    {
+                        objTaskController.Complete("1", objFET?.ScreenArgs?.TaskID ?? "", objFET?.NextTask?.Notes ?? "", objFET?.ScreenArgs?.UserName ?? "",
+                            objFET?.ScreenArgs?.Contract ?? "");
+                    }
+                    else if (objFET.ScreenArgs.TaskName == objFET.NextTask.Task.TaskName)
+                    {
+                        objTaskController.Edit(objFET?.ScreenArgs?.TaskID ?? "", objFET?.ScreenArgs?.UserName ?? "", objFET?.NextTask?.Notes ?? "",
+                            objFET?.NextTask.Task.SendToQueue.Text ?? "", objFET.NextTask.Task.Priority ?? "", DateTime.Now.ToString(), objFET.ScreenArgs.Contract);
+                    }
+                    else if (objFET.ScreenArgs.TaskName != objFET.NextTask.Task.TaskName)
+                    {
+                        /* --- Complete Task -- */
+                        objTaskController.Complete("1", objFET?.ScreenArgs?.TaskID ?? "", objFET?.NextTask?.Notes ?? "", objFET?.ScreenArgs?.UserName ?? "",
+                            objFET?.ScreenArgs?.Contract ?? "");
+                        /* --- Create Task -- */
+                        if (!string.IsNullOrWhiteSpace((objFET?.NextTask?.Task?.TaskName ?? "")))
+                        {
+                            objTaskController.Create(objFET?.ScreenArgs?.Contract ?? "", objFET?.TaskDetails?.Speciality ?? "", objFET?.ScreenArgs?.MemberID ?? "",
+                                objFET?.ScreenArgs?.UserName ?? "", objFET?.NextTask.Task?.TaskName ?? "", objFET?.NextTask.Task.SendToQueue?.Text ?? "",
+                                objFET?.ScreenArgs?.AuthNumber ?? "", "", objFET?.NextTask?.Notes ?? "", objFET?.NextTask.Task?.Priority ?? "", "");
+                        }
+                    }
+                }
+                catch { }
+                if ((objFET.ScreenArgs.UserRole == "RN") && (objFET.ServiceData.OutcomeStatus == "Pending Clinical Review" || objFET.ServiceData.OutcomeStatus == "Nurse Certified"))
+                {
+                     sTaskId = objTaskController.Create(objFET?.ScreenArgs?.Contract ?? "", objFET?.TaskDetails?.Speciality ?? "", objFET?.ScreenArgs?.MemberID ?? "",
+                         objFET?.ScreenArgs?.UserName ?? "", "Certify Outcome (Data)", objFET?.NextTask.Task.SendToQueue?.Text ?? "",
+                         objFET?.ScreenArgs?.AuthNumber ?? "", "", objFET?.NextTask?.Notes ?? "", objFET?.NextTask.Task?.Priority ?? "", "");
+                    objTaskController.Complete("1", sTaskId, objFET?.NextTask?.Notes ?? "", objFET?.ScreenArgs?.UserName ?? "",
+                       objFET?.ScreenArgs?.Contract ?? "");
+                }
+                /* --- update work flow status -- */
+                string Reasons = string.Empty;
+                if (objFET.TaskDetails.Reasons != null)
+                { Reasons = string.Join(",", objFET?.TaskDetails?.Reasons?.Select(n => n.ID ?? "").ToArray()); }
+                if (objFET.ScreenArgs.UserRole == "CSA") { objFET.TaskDetails.WorkflowStep = "Outcome Setup"; }
+                else { objFET.TaskDetails.WorkflowStep = "Outcome Review"; }
+                if (string.IsNullOrEmpty(LatestOutPatientID)) { LatestOutPatientID = objFET?.ScreenArgs?.OutPatientID ?? "1"; }
+                objOutcomeController.UpdateWorkFlowStatus(objFET.ScreenArgs?.AuthNumber ?? "", objFET.TaskDetails?.WorkflowStep ?? "",
+                    objFET?.ServiceData?.OutcomeStatus ?? "", Reasons, LatestOutPatientID, objFET?.ScreenArgs?.UserName ?? "", objFET?.ScreenArgs?.Contract ?? "",
+                    objFET?.ScreenArgs?.TaskName ?? "", objFET?.ServiceData?.OutcomeStatus ?? "", objFET?.ScreenArgs?.UserRole ?? "", objFET?.NextTask.Task?.TaskName ?? "", SelectedCptcode);
+
+                /* --- Save Outcome Received -- */
+                objOutcomeController.SaveReceived(objFET.ScreenArgs?.Contract ?? "", objFET.ScreenArgs?.UserName ?? "", objFET.ScreenArgs?.AuthNumber ?? "",
+                    objFET?.ScreenArgs?.MemberID ?? "", objFET?.ServiceData?.AdjudicatedService ?? "", objFET?.TaskDetails?.Speciality ?? "");
+                InsertAttachments(objFET, objFET?.ScreenArgs?.TaskID ?? "");
+                try
+                {
+                    if (objFET?.ServiceData?.OutcomeStatus == "Nurse Certified")
+                    {
+                        objFET.NextTask.Notes = "";
+                        objTaskController.Complete("1", sTaskId ?? "", objFET.NextTask.Notes ?? "", objFET.ScreenArgs?.UserName ?? "",
+         objFET?.ScreenArgs?.Contract ?? "");
+                    }
+                }
+                catch(Exception ex) { }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("An error occurred: " + ex.Message);
+            }
+            return new { ID = LatestOutPatientID };
+        }
+
+        #endregion
+    }
+}

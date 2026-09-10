@@ -1,0 +1,811 @@
+using WinDTO.Tasks;
+using Newtonsoft.Json;
+using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.Data;
+using System.Web.Http;
+using WINApiBase;
+using WINApiBase.Filters;
+using WINApi.Controllers;
+using System.Linq;
+using WinDTO;
+using System.Xml.Linq;
+
+
+
+namespace WINApi.Controllers
+{
+    public class ClomidOutcomeController : ATSBaseController
+    {
+        #region Stored Procedures
+
+        private static string SP_GetData = "USP_Load_Clomid_ATS";
+        private static string SP_Save = "USP_InsertClomidOutcome_ATS";
+        private static string SP_InsertAttachments = "Usp_InsertAttachments_NEWATS";
+
+        #endregion
+
+        #region Methods
+
+        /* --- Load Method --- */
+        [HttpPost]
+        [ValidateFilter, ExceptionFilter]
+        public string SaveAttachments()
+        {
+            AttachmentsInputDetails objSaveAttachmentsInput = ATSParams?.ToJsonObject<AttachmentsInputDetails>();
+            Dictionary<string, object> args = new Dictionary<string, object>();
+            args.Add("@TaskId", objSaveAttachmentsInput?.TaskID ?? "");
+            args.Add("@OutId", objSaveAttachmentsInput?.OutID ?? "");
+            args.Add("@Attach1", objSaveAttachmentsInput?.AttachmentPath1 ?? "");
+            args.Add("@Attach2", objSaveAttachmentsInput?.AttachmentPath2 ?? "");
+            args.Add("@Attach3", objSaveAttachmentsInput?.AttachmentPath3 ?? "");
+            int result = ExecuteNonQuery(SP_InsertAttachments, objSaveAttachmentsInput?.Contract ?? "", args);
+            string status = APIResponseStatus.APIResponse(result);
+            return status;
+        }
+        [HttpPost]
+        [ValidateFilter, ExceptionFilter]
+        public string InsertAttachments(Clomid objMedicalAuthDetails, string TaskId)
+        {
+            try
+            {
+                Dictionary<string, object> _args = new Dictionary<string, object>();
+                XDocument attchitems = new XDocument(new XElement("AttachItems"));
+                // byte[] pdfbytes = null;
+                if (objMedicalAuthDetails.NextTask.Attachments != null)
+                {
+                    foreach (var attachItem in objMedicalAuthDetails.NextTask.Attachments)
+                    {
+                        //if(attachItem!=null)
+                        //{
+                        //    pdfbytes = System.Convert.FromBase64String(attachItem.Additional);
+                        //}
+                        attchitems.Root.Add(new XElement("Item",
+                            new XAttribute("FaxId", attachItem.ID ?? "0"),
+                            new XAttribute("AttachmentPath", attachItem.Tag ?? "")
+                            //   new XAttribute("Bytes", pdfbytes)
+                            )
+                            );
+                    }
+                    _args.Add("@TaskId", TaskId ?? "");
+                    _args.Add("@AttachItems", attchitems.ToString());
+                    // string result = string.Empty;
+                    //result = 
+                    ExecuteNonQuery(SP_InsertAttachments, objMedicalAuthDetails?.ScreenArgs?.Contract ?? "", _args);
+                    return "";
+                }
+                else
+                {
+                    return "";
+                }
+            }
+            catch (Exception ex)
+            {
+                return "";
+            }
+        }
+        [HttpPost]
+        [ValidateFilter, ExceptionFilter]
+        public Clomid GetData()
+        {
+            TaskScreenArgs objTaskScreenArgs = ATSParams?.ToJsonObject<TaskScreenArgs>();
+
+            /* --- Check if alreday task was existed  -- */
+            string TaskIDTaskName = string.Empty;
+            TaskController objTaskController = new TaskController();
+            TaskIDTaskName = objTaskController.CheckTask(objTaskScreenArgs?.AuthNumber ?? "", "Outcome", objTaskScreenArgs?.Contract ?? "");
+            try
+
+            {
+                if (TaskIDTaskName == "")
+                {
+                    if (objTaskScreenArgs.UserRole == "CSA") { objTaskScreenArgs.TaskName = "Enter Outcome"; }
+                    if (objTaskScreenArgs.UserRole == "RN") { objTaskScreenArgs.TaskName = "Certify Outcome"; }
+                    /* --- Create Task -- */
+                    objTaskScreenArgs.TaskID = objTaskController.Create(objTaskScreenArgs?.Contract ?? "", "Infertility", objTaskScreenArgs?.MemberID ?? "", objTaskScreenArgs?.UserName ?? "",
+                        objTaskScreenArgs?.TaskName ?? "", "My Personal Queue", objTaskScreenArgs?.AuthNumber ?? "", "C", "", "Medium", "");
+                }
+                else
+                {
+                    int i = 0;
+                    i = TaskIDTaskName.IndexOf(",");
+                    objTaskScreenArgs.TaskID = TaskIDTaskName.Substring(0, i);
+                    objTaskScreenArgs.TaskName = TaskIDTaskName.Substring(i + 1);
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("An exception captured : " + ex.Message);
+            }
+            //objTaskController.LockTask(objTaskScreenArgs.Contract, objTaskScreenArgs.UserName, objTaskScreenArgs.TaskID, objTaskScreenArgs.MemberID, "Lock Task");
+
+            Dictionary<string, object> args = new Dictionary<string, object>();
+            args.Add("@AuthNo", objTaskScreenArgs?.FormattedAuthNumber ?? "");
+            args.Add("@MemberId", objTaskScreenArgs?.MemberID ?? "");
+            args.Add("@OutId", objTaskScreenArgs?.OutPatientID ?? "");
+            Clomid objClomid = new Clomid()
+            {
+                TaskDetails = new WinDTO.Tasks.OutcomeTaskDetails(),
+                NextTask = new WinDTO.Tasks.NextTaskDetails(),
+                ServiceData = new WinDTO.Tasks.OutcomeServiceData(),
+                Cancellation = new WinDTO.Tasks.OutcomeCancellationSection(),
+                BaselineResults = new WinDTO.Tasks.OutcomeBaselineResultsSection(),
+                IUI = new WinDTO.Tasks.OutcomeIUISection(),
+                SemenAnalysis = new WinDTO.Tasks.OutcomeSemenAnalysisSection(),
+                Complications = new WinDTO.Tasks.OutcomeComplicationsSection(),
+                PregnancyResults = new WinDTO.Tasks.OutcomePregnancyResultSection(),
+                ScreenArgs = objTaskScreenArgs,
+                DateValidationCallback = null
+            };
+            try
+            {
+                using (DataSet ds = ExecuteDB(SP_GetData, objTaskScreenArgs?.Contract ?? "", args))
+                {
+                    if (ds != null && ds.Tables.Count > 0)
+                    {
+                        /* ---  Inf Cycle History  ---  */
+                        if (ds.Tables[0].Rows.Count > 0)
+                        {
+                            DataRow infcycleHx = ds.Tables[0].Rows[0];
+                            if (infcycleHx.Table.Rows.Count > 0)
+                            {
+                                /* ---  Header Section  ---   */
+                                objClomid.TaskDetails.OutcomeStartDate = infcycleHx?.Value<string>("OutcomeReceivedDate") ?? "";
+                                objClomid.ServiceData.AdjudicatedService = infcycleHx?.Value<string>("CycleType") ?? "";
+                                objClomid.TaskDetails.PreviousNotes = infcycleHx?.Value<string>("OutcomeNotes") ?? "";
+                                /* ---   Section 1  ---   */
+                                objClomid.Cancellation.CancelReason = new WinDTO.ObjectBase() { ID = infcycleHx.Value<string>("CancellationReason") ?? "" };
+                                objClomid.Cancellation.OtherCancelReason = infcycleHx?.Value<string>("CancellationDescOther") ?? "";
+                                /* ---   Section 2  ---   */
+                                objClomid.BaselineResults.LMPStartDate = infcycleHx?.Value<string>("LMPStartDate") ?? "";
+                                objClomid.BaselineResults.BaselineFSHE2Date = infcycleHx?.Value<string>("BaseLineDate") ?? "";
+                                objClomid.BaselineResults.InitialUltrasoundDate = infcycleHx?.Value<string>("InitialUltrasoundDate") ?? "";
+                                objClomid.BaselineResults.OtherResult = infcycleHx?.Value<string>("UltraSoundDesc") ?? "";
+                                objClomid.BaselineResults.FSHResult = infcycleHx?.Value<string>("FSHBaseline") ?? "";
+                                objClomid.BaselineResults.E2Result = infcycleHx?.Value<string>("E2Baseline") ?? "";
+                                objClomid.BaselineResults.CystLeftSize = infcycleHx?.Value<string>("LeftCystSize") ?? "";
+                                objClomid.BaselineResults.CystRightSize = infcycleHx?.Value<string>("RightCystSize") ?? "";
+                                objClomid.BaselineResults.AntralFollicleCountDate = infcycleHx?.Value<string>("AntralFollicleDate") ?? "";
+                                objClomid.BaselineResults.AntralFollicleCountResult = infcycleHx?.Value<string>("AntralFollicleResult") ?? "";
+                                objClomid.BaselineResults.CystNone = string.Compare("Y", infcycleHx?.Value<string>("CystsNone") ?? "", true) == 0;
+                                /* ---   Section 3  ---   */
+                                objClomid.LHSurgeDate = infcycleHx?.Value<string>("LHSurgeDate") ?? "";
+                                objClomid.FolliclesDosage = infcycleHx?.Value<string>("Folliclesnum") ?? "";
+                                /* ---   Section 4  ---   */
+                                objClomid.IUI.InseminationDate = infcycleHx?.Value<string>("InseminationDate") ?? "";
+                                objClomid.IUI.TimedIntercourse = string.Compare("Yes", infcycleHx?.Value<string>("TimedIntercourse") ?? "", true) == 0;
+                                /* ---   Section 6  ---   */
+                                objClomid.Complications.AnestheticComplication = string.Compare("Y", infcycleHx?.Value<string>("CompAnesthetic") ?? "", true) == 0;
+                                objClomid.Complications.Death = string.Compare("Y", infcycleHx?.Value<string>("CompDeath") ?? "", true) == 0;
+                                objClomid.Complications.Infection = string.Compare("Y", infcycleHx?.Value<string>("CompInfection") ?? "", true) == 0;
+                                objClomid.Complications.MedicationSideEffect = string.Compare("Y", infcycleHx?.Value<string>("CompMedication") ?? "", true) == 0;
+                                objClomid.Complications.NoComplications = string.Compare("Y", infcycleHx?.Value<string>("CompNone") ?? "", true) == 0;
+                                objClomid.Complications.PsychologicalStress = string.Compare("Y", infcycleHx?.Value<string>("CompPsych") ?? "", true) == 0;
+                                objClomid.Complications.OtherComplication = string.Compare("Y", infcycleHx?.Value<string>("CompOther") ?? "", true) == 0;
+                                objClomid.Complications.Hyperstimulation = infcycleHx?.Value<string>("Hyperstimulation") ?? "";
+                                /* ---   Section 7  ---   */
+                                objClomid.PregnancyResults.BetaHCG = infcycleHx?.Value<string>("BetaHCG") ?? "";
+                                objClomid.PregnancyResults.BETAnHCGPositiveResult = infcycleHx?.Value<string>("BetaHCGResult") ?? "";
+                                objClomid.PregnancyResults.Chemical = string.Compare("Y", infcycleHx?.Value<string>("Chemical") ?? "", true) == 0;
+                                objClomid.PregnancyResults.BETAnHCGPositiveGestationsCount = infcycleHx?.Value<string>("GestNum") ?? "";
+                                objClomid.PregnancyResults.UltrasoundDate = infcycleHx?.Value<string>("PregancyUltrasoundDate") ?? "";
+                                objClomid.PregnancyResults.FetalHearts = infcycleHx?.Value<string>("MaximumNumFetalHearts") ?? "";
+                                objClomid.PregnancyResults.FetalHeartRate = infcycleHx?.Value<string>("FetalHeartRate") ?? "";
+                                objClomid.PregnancyResults.Ectopic = string.Compare("Y", infcycleHx?.Value<string>("Ectopic") ?? "", true) == 0;
+                                objClomid.PregnancyResults.RequiresMedicalTreatment = string.Compare("Y", infcycleHx?.Value<string>("EctopicReqMedicalTreatment") ?? "", true) == 0;
+                                objClomid.PregnancyResults.RequiresSurgicalIntervention = string.Compare("Y", infcycleHx?.Value<string>("EctopicReqSurgIntervention") ?? "", true) == 0;
+                                objClomid.PregnancyResults.SpontaneousAB = string.Compare("Y", infcycleHx?.Value<string>("SpontaneousAB") ?? "", true) == 0;
+                            }
+                        }
+                        /* ---  Inf Seman Analysis  ---  */
+                        if (ds.Tables[1].Rows.Count > 0)
+                        {
+                            DataRow infSemanAnalysis = ds.Tables[1].Rows[0];
+                            if (infSemanAnalysis.Table.Rows.Count > 0)
+                            {
+                                /* ---  Section 5  ---  */
+                                if (infSemanAnalysis.Value<string>("CollectionMethodPartnerFresh") != null && infSemanAnalysis?.Value<string>("CollectionMethodPartnerFresh") != "")
+                                {
+                                    objClomid.SemenAnalysis.SpermSource = SpermSources.PARTNER_FRESH;
+                                }
+                                else if (infSemanAnalysis.Value<string>("CollectionMethodPartnerFrozen") != null && infSemanAnalysis?.Value<string>("CollectionMethodPartnerFrozen") != "")
+                                {
+                                    objClomid.SemenAnalysis.SpermSource = SpermSources.PARTNER_FROZEN;
+                                }
+                                else if (infSemanAnalysis.Value<string>("CollectionMethodDonor") != null && infSemanAnalysis?.Value<string>("CollectionMethodDonor") != "")
+                                {
+                                    objClomid.SemenAnalysis.SpermSource = SpermSources.DONOR_FRESH;
+                                }
+                                else
+                                {
+                                    objClomid.SemenAnalysis.SpermSource = SpermSources.DONOR_FROZEN;
+                                }
+                                objClomid.SemenAnalysis.PreWashSemenVolume = infSemanAnalysis?.Value<string>("Volume") ?? "";
+                                objClomid.SemenAnalysis.PreWashSemenCount = infSemanAnalysis?.Value<string>("SemCount") ?? "";
+                                objClomid.SemenAnalysis.PreWashSemenMotility = infSemanAnalysis?.Value<string>("Motility") ?? "";
+                                objClomid.SemenAnalysis.PostWashSemenVolume = infSemanAnalysis?.Value<string>("Volume2") ?? "";
+                                objClomid.SemenAnalysis.PostWashSemenCount = infSemanAnalysis?.Value<string>("SemCount2") ?? "";
+                                objClomid.SemenAnalysis.PostWashSemenMotility = infSemanAnalysis?.Value<string>("Motility2") ?? "";
+                            }
+                        }
+                        /* ---  Inf Rx Hx  ---  */
+                        if (ds.Tables[2].Rows.Count > 0)
+                        {
+                            DataTable infRxHx = ds.Tables[2];
+                            foreach (DataRow dr in infRxHx.Rows)
+                            {
+                                string checkvalue = string.Empty;
+                                /* ---   Section 3  ---   */
+                                objClomid.ClomidStartDate = dr.Value<string>("MedicationStartDate") ?? "";
+                                objClomid.ClomidCancelledDate = dr.Value<string>("MedicationCancelledDate") ?? "";
+                                checkvalue = dr.Value<string>("DrugName") ?? "";
+                                switch (checkvalue)
+                                {
+                                    case "Clomiphene Citrate":
+                                        objClomid.ChlomipheneCitrateDosage = dr.Value<string>("NumUnits") ?? "";
+                                        objClomid.ChlomipheneCitrateDosageDays = dr.Value<float>("NumDays").ToString("F0").IgnoreZero();
+                                        break;
+                                    case "Letrozole":
+                                        objClomid.LetrozoleDosage = dr.Value<string>("NumUnits") ?? "";
+                                        objClomid.LetrozoleDosageDays = dr.Value<float>("NumDays").ToString("F0").IgnoreZero();
+                                        break;
+                                    case "hCG":
+                                        objClomid.HCGSignature = dr.Value<string>("SpecialInstructions") ?? "";
+                                        break;
+                                    default:
+                                        objClomid.OtherDrugSignature = dr.Value<string>("SpecialInstructions") ?? "";
+                                        objClomid.OtherDrug = checkvalue;
+                                        break;
+                                }
+                                checkvalue = "";
+                                if (objClomid.LHSurgeDate != "" && objClomid.HCGSignature != "")
+                                {
+                                    objClomid.LHKit = true;
+                                }
+                            }
+                        }
+                        /* ---  Inf outcome status  ---  */
+                        if (ds.Tables[3].Rows.Count > 0)
+                        {
+                            DataRow infOutcomeStatus = ds.Tables[3].Rows[0];
+                            if (infOutcomeStatus.Table.Rows.Count > 0)
+                            {
+                                objClomid.ServiceData.AdjudicatedService = infOutcomeStatus?.Value<string>("AdjudicatedService") ?? "";
+                                objClomid.ServiceData.OutcomeStatus = infOutcomeStatus?.Value<string>("ReasonDesc") ?? "";
+                                if (objClomid.ServiceData.OutcomeStatus == "Nurse Certified")
+                                {
+                                    objClomid.ServiceData.RNAdjudication = true;
+                                }
+                            }
+                        }
+                        /* ---  Inf Initial Service  ---  */
+                        if (ds.Tables[4].Rows.Count > 0)
+                        {
+                            DataRow infInitilaService = ds.Tables[4].Rows[0];
+                            if (infInitilaService.Table.Rows.Count > 0)
+                            {
+                                objClomid.ServiceData.InitialCPTCode = infInitilaService?.Value<string>("InitialCPTCode") ?? "";
+                                objClomid.ServiceData.InitialHCPCCode = infInitilaService?.Value<string>("InitialHCPCSCode") ?? "";
+                                objClomid.ServiceData.OldOutPatientID = infInitilaService?.Value<string>("BaseId") ?? "";
+                                objClomid.ScreenArgs.AuthNumber = infInitilaService?.Value<string>("AuthNo") ?? "";
+                            }
+                        }
+                        /* ---  Inf Auth Service  ---  */
+                        if (ds.Tables[5].Rows.Count > 0)
+                        {
+                            DataRow AuthService = ds.Tables[5].Rows[0];
+                            if (AuthService.Table.Rows.Count > 0)
+                            {
+                                objClomid.TaskDetails.Speciality = AuthService?.Value<string>("Speciality") ?? "";
+                                objClomid.TaskDetails.OutPatientID = AuthService?.Value<string>("OutpatientID") ?? "";
+                                objClomid.TaskDetails.ProcedureCode = AuthService?.Value<string>("Code") ?? "";
+                                objClomid.TaskDetails.IDC9Code = AuthService?.Value<string>("ICD9Code") ?? "";
+                                objClomid.TaskDetails.Provider = AuthService?.Value<string>("SerProName") ?? "";
+                                objClomid.TaskDetails.GroupName = AuthService?.Value<string>("GroupName") ?? "";
+                                objClomid.AuthHeaderDetails.AuthType = AuthService?.Value<string>("AuthType") ?? "";
+                                objClomid.TaskDetails.DateFrom = string.Compare("", AuthService?.Value<string>("ReqFromDate") ?? "", true) == 0 ? Convert.ToDateTime(DateTime.Now).ToString("MM/dd/yyyy") : Convert.ToDateTime(AuthService.Value<string>("ReqFromDate")).ToString("MM/dd/yyyy");
+                                objClomid.TaskDetails.DateTo = string.Compare("", AuthService?.Value<string>("ReqToDate") ?? "", true) == 0 ? Convert.ToDateTime(DateTime.Now).ToString("MM/dd/yyyy") : Convert.ToDateTime(AuthService.Value<string>("ReqToDate")).ToString("MM/dd/yyyy");
+                                objClomid.ServiceData.OutcomeStatus = AuthService?.Value<string>("WStatus") ?? "";
+                                objClomid.TaskDetails.WorkflowStep = AuthService?.Value<string>("WorkflowStep") ?? "";
+                                if ((objTaskScreenArgs?.TaskName ?? "") == "Enter Outcome") { objClomid.TaskDetails.WorkflowStep = "Outcome Setup"; }
+                                else { objClomid.TaskDetails.WorkflowStep = "Outcome Review"; }
+                                if ((objClomid?.TaskDetails?.WorkflowStep ?? "") == "") { objClomid.TaskDetails.WorkflowStep = "Incomplete"; }
+                                if ((objClomid?.ScreenArgs?.OutPatientID ?? "") == "") { objClomid.ScreenArgs.OutPatientID = objClomid.TaskDetails.OutPatientID; }
+                            }
+                        }
+                        /* ---  Auth Reasons  ---  */
+                        if (ds.Tables[6].Rows.Count > 0)
+                        {
+                            DataTable AuthReasons = ds.Tables[6];
+                            objClomid.TaskDetails.Reasons = new List<WinDTO.ObjectBase>();
+                            foreach (DataRow dr in AuthReasons.Rows)
+                            {
+                                objClomid.TaskDetails.Reasons.Add(new WinDTO.ObjectBase()
+                                {
+                                    ID = dr.Value<string>("ReaonCode") ?? "",
+                                    Text = dr.Value<string>("ReasonDesc") ?? ""
+                                });
+                            }
+                        }
+                        /* ---  Attachments  ---  */
+                        if (ds.Tables[7].Rows.Count > 0)
+                        {
+                            DataTable Attachments = ds.Tables[7];
+                            objClomid.NextTask.Attachments = new List<WinDTO.ObjectBase>();
+                            foreach (DataRow dr in Attachments.Rows)
+                            {
+                                objClomid.NextTask.Attachments.Add(new WinDTO.ObjectBase()
+                                {
+                                    ID = dr.Value<string>("FaxID") ?? "",
+                                    Text = dr.Value<string>("Attachment") ?? "",
+                                    Tag = dr.Value<string>("LinkTODoc") ?? ""
+                                });
+                            }
+                        }
+                        /* ---  Get Work Queue  ---  */
+                        //DataTable WorkQueue = objTaskController.TaskTo(objTaskScreenArgs.Contract);
+                        objClomid.WorkQueues = new List<ObjectBase>();
+                        objClomid.WorkQueues = objTaskController.TaskTo(objTaskScreenArgs?.Contract ?? "");
+                        //if (WorkQueue != null && WorkQueue.Rows.Count > 0)
+                        //{
+                        //    foreach (DataRow row in WorkQueue.Rows)
+                        //    {
+                        //        objClomid.WorkQueues.Add(new ObjectBase()
+                        //        {
+                        //            ID = row.Value<string>("Name"),
+                        //            Text = row.Value<string>("TaskTo")
+                        //        });
+                        //    }
+                        //}
+
+                        /* ---  Get Auth Reasons  ---  */
+                        DataTable GetAuthReasons = objTaskController.GetReasonCodes("Outcome" + objTaskScreenArgs?.UserRole ?? "", objTaskScreenArgs?.Contract ?? "", objTaskScreenArgs?.UserName ?? "", objTaskScreenArgs?.TaskName ?? "", objTaskScreenArgs?.MemberID ?? "");
+                        objClomid.AuthReasons = new List<WinDTO.ObjectBase>();
+                        foreach (DataRow dr in GetAuthReasons.Rows)
+                        {
+                            objClomid.AuthReasons.Add(new WinDTO.ObjectBase()
+                            {
+                                ID = dr.Value<string>("ReasonCode") ?? "",
+                                Text = dr.Value<string>("ReasonDesc") ?? "",
+                            });
+                        }
+                    }
+                }
+                ;
+            }
+            catch (Exception ex)
+            {
+            }
+            return objClomid;
+        }
+
+        /* --- Save Method --- */
+        [HttpPost]
+        [ValidateFilter, ExceptionFilter]
+
+        public object Save()
+        {
+            Clomid objClomid = ATSParams?.ToJsonObject<Clomid>();
+            Dictionary<string, object> args = new Dictionary<string, object>();
+
+            bool isCsa = string.Equals(
+    objClomid?.ScreenArgs?.UserRole,
+    "CSA",
+    StringComparison.OrdinalIgnoreCase);
+
+            bool isRn = string.Equals(
+                objClomid?.ScreenArgs?.UserRole,
+                "RN",
+                StringComparison.OrdinalIgnoreCase);
+
+            bool isSnr = string.Equals(
+                objClomid?.ServiceData?.AdjudicatedService,
+                "SNR",
+                StringComparison.OrdinalIgnoreCase);
+
+            /* --- Get Latest OutPatientID -- */
+            string CancelReason = string.Empty;
+            string SelectedCptcode = string.Empty;
+            string LatestOutPatientID = string.Empty;
+
+            bool isCsaIntermediateSnr =
+     isCsa &&
+     isSnr &&
+     (string.Equals(objClomid?.ServiceData?.OutcomeStatus, "CSA Data Entered",
+         StringComparison.OrdinalIgnoreCase)
+      ||
+      string.Equals(objClomid?.ServiceData?.OutcomeStatus, "CSA Data Reviewed",
+         StringComparison.OrdinalIgnoreCase));
+
+            try
+            {
+                if (isSnr && isRn)
+                {
+                    CancelReason = "Services not rendered";
+                    SelectedCptcode = "SNR";
+                }
+                else if (objClomid.ServiceData.AdjudicatedService == "S4017-TF")
+                {
+                    CancelReason = "Cancelled at baseline";
+                    SelectedCptcode = "ITCS";
+                }
+                else if (objClomid.ServiceData.AdjudicatedService == "S4042")
+                {
+                    CancelReason = "Cancelled after medication";
+                    SelectedCptcode = "CMDCA";
+                }
+                else if (objClomid.ServiceData.AdjudicatedService == "S4042-TG")
+                {
+                    CancelReason = "Downcoded to CMDCL from CMDCLIUI";
+                    SelectedCptcode = "CMDCL";
+                }
+                else if (objClomid.ServiceData.AdjudicatedService == "S4035-TF")
+                {
+                    CancelReason = "Upcoded to CMDCL With IUINS";
+                    SelectedCptcode = "CMDCLIUI";
+                }
+                else
+                {
+                    CancelReason = "";
+                    SelectedCptcode = "";
+                }
+            }
+            catch (Exception ex)
+            {
+            }
+            OutcomeController objOutcomeController = new OutcomeController();
+            if (isRn && isSnr &&
+                string.Equals(
+                    objClomid?.ServiceData?.OutcomeStatus,
+                    "Nurse Certified",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                LatestOutPatientID = objOutcomeController.GetLatestOutPatientId(objClomid?.ScreenArgs?.MemberID ?? "", objClomid?.ScreenArgs?.Contract ?? "",
+                    objClomid?.TaskDetails?.Speciality ?? "", objClomid?.ServiceData?.InitialCPTCode ?? "", objClomid?.ScreenArgs?.AuthNumber ?? "",
+                    objClomid?.ScreenArgs?.OutPatientID ?? "", SelectedCptcode ?? "", CancelReason ?? "",
+                    objClomid?.ScreenArgs?.UserName ?? "", objClomid?.ServiceData?.OldOutPatientID ?? "");
+            }
+            /* ---  header section  --- */
+            args.Add("@Mode", "");
+            args.Add("@AuthNo", objClomid?.ScreenArgs?.AuthNumber ?? "", DBNull.Value);
+            args.Add("@MemberID", objClomid?.ScreenArgs?.MemberID ?? "");
+            args.Add("@TimeOfEntry", DateTime.Now.ToString() ?? "");
+            args.Add("@Contract", objClomid?.ScreenArgs?.Contract ?? "");
+            args.Add("@Specialty", objClomid?.TaskDetails?.Speciality ?? "");
+            args.Add("@UserName", objClomid?.ScreenArgs?.UserName ?? "");
+            args.Add("@ServiceID", objClomid?.ScreenArgs?.OutPatientID ?? "", DBNull.Value);
+            args.Add("@OldId", objClomid?.ScreenArgs?.OutPatientID ?? "", DBNull.Value);
+            args.Add("@SNRCovidReason", objClomid?.ScreenArgs?.SNRReason ?? "", DBNull.Value);
+            if (objClomid.TaskDetails.Reasons != null)
+            { args.Add("@ReasonString", string.Join(",", objClomid?.TaskDetails?.Reasons?.Select(n => n.ID ?? "").ToArray())); }
+            else { args.Add("@ReasonString", ""); }
+            args.Add("@CycleNum", 0);
+            args.Add("@OutcomeReceivedDate", objClomid?.TaskDetails?.OutcomeStartDate ?? "");
+            args.Add("@CycleType", objClomid?.ServiceData?.CPTCode ?? "");
+            args.Add("@SNR", (isSnr && isRn) ? 1 : 0);
+            args.Add("@DurationToDate", objClomid?.TaskDetails?.DateTo ?? "", DBNull.Value);
+            args.Add("@OutcomeStatus", objClomid?.ServiceData?.OutcomeStatus ?? "", DBNull.Value);
+            /* ---  inf Cycle Hx  --- */
+            /* ---  Section 1  --- */
+            args.Add("@CancellationReason", (objClomid.Cancellation.CancelReason == null ? "" : (objClomid?.Cancellation?.CancelReason.ID ?? "")));
+            args.Add("@CancellationDescOther", objClomid?.Cancellation?.OtherCancelReason ?? "");
+            /* ---  Section 2  --- */
+            args.Add("@LMPStartDate", objClomid?.BaselineResults?.LMPStartDate ?? "", DBNull.Value);
+            args.Add("@BaseLineDate", objClomid?.BaselineResults?.BaselineFSHE2Date ?? "", DBNull.Value);
+            args.Add("@FSHBaseline", objClomid?.BaselineResults?.FSHResult ?? "");
+            args.Add("@E2Baseline", objClomid?.BaselineResults?.E2Result ?? "");
+            args.Add("@AntralFollicleDate", objClomid?.BaselineResults?.AntralFollicleCountDate ?? "", DBNull.Value);
+            args.Add("@AntralFollicleResult", objClomid?.BaselineResults?.AntralFollicleCountResult ?? "");
+            args.Add("@InitialUltrasoundDate", objClomid?.BaselineResults?.InitialUltrasoundDate ?? "", DBNull.Value);
+            args.Add("@UltraSoundDesc", objClomid?.BaselineResults?.OtherResult ?? "", DBNull.Value);
+            args.Add("@CystsNone", objClomid.BaselineResults.CystNone ? "Y" : "N");
+            args.Add("@LeftCystSize", objClomid?.BaselineResults?.CystLeftSize ?? "", DBNull.Value);
+            args.Add("@RightCystSize", objClomid?.BaselineResults?.CystRightSize ?? "", DBNull.Value);
+            /* ---  Section 3  --- */
+            args.Add("@E2Max", objClomid?.E2Max ?? "");
+            args.Add("@Folliclesnum", objClomid?.FolliclesDosage ?? "");
+            args.Add("@LHSurgeDate", objClomid?.LHSurgeDate ?? "", DBNull.Value);
+            /* ---  Section 4  --- */
+            args.Add("@InseminationDate", objClomid?.IUI?.InseminationDate ?? "", DBNull.Value);
+            args.Add("@TimedIntercourse", objClomid.IUI.TimedIntercourse ? "Yes" : "No");
+            /* ---  Section 6  --- */
+            args.Add("@CompNone", objClomid.Complications.NoComplications ? "Y" : "N");
+            args.Add("@CompMedication", objClomid.Complications.MedicationSideEffect ? "Y" : "N");
+            args.Add("@CompAnesthetic", objClomid.Complications.AnestheticComplication ? "Y" : "N");
+            args.Add("@CompPsych", objClomid.Complications.PsychologicalStress ? "Y" : "N");
+            args.Add("@CompInfection", objClomid.Complications.Infection ? "Y" : "N");
+            args.Add("@CompDeath", objClomid.Complications.Death ? "Y" : "N");
+            args.Add("@CompOther", objClomid.Complications.OtherComplication ? "Y" : "N");
+            //args.Add("@Hyperstimulation", objClomid.Complications.Hyperstimulation ?? "");
+            /* ---  Section 7  --- */
+            args.Add("@BetaHCG", objClomid?.PregnancyResults?.BetaHCG ?? "", DBNull.Value);
+            args.Add("@Chemical", objClomid.PregnancyResults.Chemical ? "Y" : "N");
+            args.Add("@BetaHCGResult", objClomid?.PregnancyResults?.BETAnHCGPositiveResult ?? "", DBNull.Value);
+            args.Add("@GestNum", objClomid?.PregnancyResults?.BETAnHCGPositiveGestationsCount ?? "", DBNull.Value);
+            args.Add("@PregancyUltrasoundDate", objClomid?.PregnancyResults?.UltrasoundDate, DBNull.Value);
+            args.Add("@MaximumNumFetalHearts", objClomid?.PregnancyResults?.FetalHearts ?? "", DBNull.Value);
+            args.Add("@FetalHeartRate", objClomid.PregnancyResults.FetalHeartRate ?? "");
+            args.Add("@EctopicReqMedicalTreatment", objClomid.PregnancyResults.RequiresMedicalTreatment ? "Y" : "N");
+            args.Add("@EctopicReqSurgIntervention", objClomid.PregnancyResults.RequiresSurgicalIntervention ? "Y" : "N");
+            if (objClomid.PregnancyResults.RequiresSurgicalIntervention || objClomid.PregnancyResults.RequiresMedicalTreatment)
+            {
+                args.Add("@EctopicNum", 1);
+                objClomid.PregnancyResults.Ectopic = true;
+            }
+            else
+            {
+                args.Add("@EctopicNum", 0);
+            }
+            args.Add("@Ectopic", objClomid.PregnancyResults.Ectopic ? "Y" : "N");
+            args.Add("@SpontaneousAB", objClomid.PregnancyResults.SpontaneousAB ? "Y" : "N");
+            /* ---  inf Semen Analysis  --- */
+            /* ---  Section 5  --- */
+            args.Add("@CollectionMethodPartnerFresh", (string.Compare(objClomid?.SemenAnalysis?.SpermSource ?? "", SpermSources.PARTNER_FRESH, true) == 0 ? "EJ" : ""));
+            args.Add("@CollectionMethodPartnerFrozen", (string.Compare(objClomid?.SemenAnalysis?.SpermSource ?? "", SpermSources.PARTNER_FROZEN, true) == 0 ? "EJ" : ""));
+            args.Add("@CollectionMethodDonor", (string.Compare(objClomid?.SemenAnalysis?.SpermSource ?? "", SpermSources.DONOR_FRESH, true) == 0 ? "EJ" : ""));
+            args.Add("@CollectionMethodDonorFrozen", (string.Compare(objClomid?.SemenAnalysis?.SpermSource ?? "", SpermSources.DONOR_FROZEN, true) == 0 ? "EJ" : ""));
+            args.Add("@SemCount", objClomid?.SemenAnalysis?.PreWashSemenCount ?? "", DBNull.Value);
+            args.Add("@SemCount2", objClomid?.SemenAnalysis?.PostWashSemenCount ?? "", DBNull.Value);
+            args.Add("@Motility", objClomid?.SemenAnalysis?.PreWashSemenMotility ?? "");
+            args.Add("@Motility2", objClomid?.SemenAnalysis?.PostWashSemenMotility ?? "");
+            args.Add("@Volume", objClomid?.SemenAnalysis?.PreWashSemenVolume ?? "", DBNull.Value);
+            args.Add("@Volume2", objClomid?.SemenAnalysis?.PostWashSemenVolume ?? "", DBNull.Value);
+            /* ---  footer section  --- */
+            args.Add("@OutcomeNotes", objClomid?.NextTask?.Notes ?? "");
+            /* ---  Save outcome  --- */
+            ExecuteNonQuery(SP_Save, objClomid?.ScreenArgs?.Contract ?? "", args);
+            ///* --- Get Latest OutPatientID -- */
+            //string CancelReason = string.Empty;
+            //string SelectedCptcode = string.Empty;
+            //string LatestOutPatientID = string.Empty;
+            //if (objClomid.ServiceData.AdjudicatedService == "SNR")
+            //{
+            //    CancelReason = "Services not rendered";
+            //    SelectedCptcode = "SNR";
+            //}
+            //else if (objClomid.ServiceData.AdjudicatedService == "S4017-TF")
+            //{
+            //    CancelReason = "Cancelled at baseline";
+            //    SelectedCptcode = "ITCS";
+            //}
+            //else if (objClomid.ServiceData.AdjudicatedService == "S4042")
+            //{
+            //    CancelReason = "Cancelled after medication";
+            //    SelectedCptcode = "CMDCA";
+            //}
+            //else if (objClomid.ServiceData.AdjudicatedService == "S4042-TG")
+            //{
+            //    CancelReason = "Downcoded to CMDCL from CMDCLIUI";
+            //    SelectedCptcode = "CMDCL";
+            //}
+            //else if (objClomid.ServiceData.AdjudicatedService == "S4035-TF")
+            //{
+            //    CancelReason = "Upcoded to CMDCL With IUINS";
+            //    SelectedCptcode = "CMDCLIUI";
+            //}
+            //else
+            //{
+            //    CancelReason = "";
+            //    SelectedCptcode = "";
+            //}
+
+            //OutcomeController objOutcomeController = new OutcomeController();
+            //if ((objClomid.ScreenArgs.UserRole == "RN" && objClomid.ServiceData.OutcomeStatus == "Nurse Certified") || SelectedCptcode == "SNR")
+            //{
+            //    LatestOutPatientID = objOutcomeController.GetLatestOutPatientId(objClomid.ScreenArgs.MemberID, objClomid.ScreenArgs.Contract,
+            //        objClomid.TaskDetails.Speciality, objClomid.ServiceData.InitialCPTCode, objClomid.ScreenArgs.AuthNumber,
+            //        objClomid.ScreenArgs.OutPatientID, SelectedCptcode, CancelReason,
+            //        objClomid.ScreenArgs.UserName, objClomid.ServiceData.OldOutPatientID);
+            //}
+
+            /* --- Save Rx Data -- */
+            if (string.IsNullOrWhiteSpace(objClomid.ChlomipheneCitrateDosage) == false)
+            {
+                objOutcomeController.SaveRx(objClomid?.ScreenArgs?.AuthNumber ?? "", objClomid?.ScreenArgs?.MemberID ?? "", "Clomiphene Citrate",
+                    objClomid?.ChlomipheneCitrateDosage ?? "", objClomid?.ChlomipheneCitrateDosageDays ?? "", objClomid?.ClomidStartDate ?? "", objClomid?.ClomidCancelledDate ?? "",
+                    "", "", objClomid?.ChlomipheneCitrateDosage ?? "", "", objClomid?.ScreenArgs?.Contract ?? "");
+            }
+            if (string.IsNullOrWhiteSpace(objClomid.LetrozoleDosage) == false)
+            {
+                objOutcomeController.SaveRx(objClomid?.ScreenArgs?.AuthNumber ?? "", objClomid?.ScreenArgs?.MemberID ?? "", "Letrozole",
+                    objClomid?.LetrozoleDosage ?? "", objClomid?.LetrozoleDosageDays ?? "", objClomid?.ClomidStartDate ?? "", objClomid?.ClomidCancelledDate ?? "",
+                    "", "", objClomid?.LetrozoleDosage ?? "", "", objClomid?.ScreenArgs?.Contract ?? "");
+            }
+            if (string.IsNullOrWhiteSpace(objClomid.HCGSignature) == false)
+            {
+                objOutcomeController.SaveRx(objClomid?.ScreenArgs?.AuthNumber ?? "", objClomid?.ScreenArgs?.MemberID ?? "", "hCG",
+                    "10000", "1", objClomid?.ClomidStartDate ?? "", objClomid?.ClomidCancelledDate ?? "",
+                    objClomid?.HCGSignature ?? "", "", "", "", objClomid?.ScreenArgs?.Contract ?? "");
+            }
+            if (string.IsNullOrWhiteSpace(objClomid.OtherDrug) == false)
+            {
+                objOutcomeController.SaveRx(objClomid?.ScreenArgs?.AuthNumber ?? "", objClomid?.ScreenArgs?.MemberID ?? "", objClomid?.OtherDrug ?? "",
+                    "", "", objClomid?.ClomidStartDate ?? "", objClomid?.ClomidCancelledDate ?? "",
+                    objClomid?.OtherDrugSignature ?? "", "", "", "", objClomid?.ScreenArgs?.Contract ?? "");
+            }
+            /* --- Save Outcome Status -- */
+            string AdjudicatedCost = string.Empty;
+            if (objClomid.ServiceData.OutcomeStatus == "Missing Information")
+            {
+                AdjudicatedCost = "0";
+            }
+            else
+            {
+                AdjudicatedCost = "1";
+            }
+
+            string outcomeStatusToSave =
+    objClomid?.ServiceData?.OutcomeStatus ?? "";
+
+            if (isCsa && isSnr)
+            {
+                if (!string.Equals(outcomeStatusToSave, "CSA Data Entered",
+                    StringComparison.OrdinalIgnoreCase)
+                    &&
+                    !string.Equals(outcomeStatusToSave, "CSA Data Reviewed",
+                    StringComparison.OrdinalIgnoreCase))
+                {
+                    outcomeStatusToSave = "CSA Data Reviewed";
+                }
+            }
+
+
+
+            objOutcomeController.SaveStatus(
+    objClomid?.ScreenArgs?.MemberID ?? "",
+    objClomid?.ScreenArgs?.AuthNumber ?? "",
+    outcomeStatusToSave,
+    outcomeStatusToSave,
+    objClomid?.ServiceData?.AdjudicatedService ?? "",
+    AdjudicatedCost ?? "",
+    objClomid?.ScreenArgs?.UserName ?? "",
+    objClomid?.ScreenArgs?.Contract ?? "");
+
+            ///* --- Save Outcome Received -- */
+            //objOutcomeController.SaveReceived(objClomid.ScreenArgs.Contract, objClomid.ScreenArgs.UserName, objClomid.ScreenArgs.AuthNumber,
+            //    objClomid.ScreenArgs.MemberID, objClomid.ServiceData.AdjudicatedService, objClomid.TaskDetails.Speciality);
+
+            /* --- Move Pended Task -- */
+            objOutcomeController.MovePendedTask("TaskMove", objClomid?.ScreenArgs?.MemberID ?? "", objClomid?.ScreenArgs?.AuthNumber ?? "", objClomid?.ScreenArgs?.TaskID ?? "",
+                objClomid?.ScreenArgs?.UserName ?? "", objClomid?.ScreenArgs?.Contract ?? "");
+
+            /* --- Edit Task -- */
+            TaskController objTaskController = new TaskController();
+            /*
+ * CSA + SNR:
+ * CSA does not finalize SNR.
+ * Complete CSA task and create Certify Outcome for RN.
+ */
+            if (isCsa && isSnr)
+            {
+                objTaskController.Complete(
+                    "1",
+                    objClomid?.ScreenArgs?.TaskID ?? "",
+                    objClomid?.NextTask?.Notes ?? "",
+                    objClomid?.ScreenArgs?.UserName ?? "",
+                    objClomid?.ScreenArgs?.Contract ?? "");
+
+                objTaskController.Create(
+                    objClomid?.ScreenArgs?.Contract ?? "",
+                    objClomid?.TaskDetails?.Speciality ?? "",
+                    objClomid?.ScreenArgs?.MemberID ?? "",
+                    objClomid?.ScreenArgs?.UserName ?? "",
+                    "Certify Outcome",
+                    "Primary UM Queue",
+                    objClomid?.ScreenArgs?.AuthNumber ?? "",
+                    "",
+                    objClomid?.NextTask?.Notes ?? "",
+                    "Medium",
+                    "");
+            }
+            /*
+             * RN + SNR + Nurse Certified:
+             * RN finalizes SNR and Certify Outcome is completed.
+             */
+            else if (isRn && isSnr &&
+                     string.Equals(
+                         objClomid?.ServiceData?.OutcomeStatus,
+                         "Nurse Certified",
+                         StringComparison.OrdinalIgnoreCase))
+            {
+                objTaskController.Complete(
+                    "1",
+                    objClomid?.ScreenArgs?.TaskID ?? "",
+                    objClomid?.NextTask?.Notes ?? "",
+                    objClomid?.ScreenArgs?.UserName ?? "",
+                    objClomid?.ScreenArgs?.Contract ?? "");
+            }
+            /*
+             * Existing behavior for all other outcomes.
+             */
+            else if (objClomid.ScreenArgs.TaskName == objClomid.NextTask.Task.TaskName)
+            {
+                objTaskController.Edit(
+                    objClomid?.ScreenArgs?.TaskID ?? "",
+                    objClomid?.ScreenArgs?.UserName ?? "",
+                    objClomid?.NextTask?.Notes ?? "",
+                    objClomid?.NextTask?.Task?.SendToQueue?.Text ?? "",
+                    objClomid?.NextTask?.Task?.Priority ?? "",
+                    DateTime.Now.ToString(),
+                    objClomid?.ScreenArgs?.Contract ?? "");
+            }
+            else if (objClomid.ScreenArgs.TaskName != objClomid.NextTask.Task.TaskName)
+            {
+                objTaskController.Complete(
+                    "1",
+                    objClomid?.ScreenArgs?.TaskID ?? "",
+                    objClomid?.NextTask?.Notes ?? "",
+                    objClomid?.ScreenArgs?.UserName ?? "",
+                    objClomid?.ScreenArgs?.Contract ?? "");
+
+                if (!string.IsNullOrWhiteSpace(
+                    objClomid?.NextTask?.Task?.TaskName ?? ""))
+                {
+                    objTaskController.Create(
+                        objClomid?.ScreenArgs?.Contract ?? "",
+                        objClomid?.TaskDetails?.Speciality ?? "",
+                        objClomid?.ScreenArgs?.MemberID ?? "",
+                        objClomid?.ScreenArgs?.UserName ?? "",
+                        objClomid?.NextTask?.Task?.TaskName ?? "",
+                        objClomid?.NextTask?.Task?.SendToQueue?.Text ?? "",
+                        objClomid?.ScreenArgs?.AuthNumber ?? "",
+                        "",
+                        objClomid?.NextTask?.Notes ?? "",
+                        objClomid?.NextTask?.Task?.Priority ?? "",
+                        "");
+                }
+            }
+
+
+            if ((objClomid.ScreenArgs.UserRole == "RN") && (objClomid.ServiceData.OutcomeStatus == "Pending Clinical Review"))
+            {
+                string sTaskId = objTaskController.Create(objClomid?.ScreenArgs?.Contract ?? "", objClomid?.TaskDetails?.Speciality ?? "", objClomid?.ScreenArgs?.MemberID ?? "",
+                     objClomid?.ScreenArgs?.UserName ?? "", "Certify Outcome (Data)", objClomid?.NextTask?.Task?.SendToQueue?.Text ?? "",
+                     objClomid?.ScreenArgs?.AuthNumber ?? "", "", objClomid?.NextTask?.Notes ?? "", objClomid?.NextTask?.Task?.Priority, "");
+                objTaskController.Complete("1", sTaskId, objClomid?.NextTask?.Notes ?? "", objClomid?.ScreenArgs?.UserName ?? "",
+                   objClomid?.ScreenArgs?.Contract ?? "");
+            }
+            /* --- update work flow status -- */
+            string Reasons = string.Empty;
+            if (objClomid.TaskDetails.Reasons != null)
+            { Reasons = string.Join(",", objClomid?.TaskDetails?.Reasons?.Select(n => n.ID ?? "").ToArray()); }
+
+            if (string.IsNullOrEmpty(LatestOutPatientID)) { LatestOutPatientID = objClomid?.ScreenArgs?.OutPatientID ?? "1"; }
+
+            if (objClomid.ScreenArgs.UserRole == "CSA") { objClomid.TaskDetails.WorkflowStep = "Outcome Setup"; }
+            else { objClomid.TaskDetails.WorkflowStep = "Outcome Review"; }
+            objOutcomeController.UpdateWorkFlowStatus(
+    objClomid?.ScreenArgs?.AuthNumber ?? "",
+    objClomid?.TaskDetails?.WorkflowStep ?? "",
+    outcomeStatusToSave,
+    Reasons ?? "",
+    LatestOutPatientID ?? "",
+    objClomid?.ScreenArgs?.UserName ?? "",
+    objClomid?.ScreenArgs?.Contract ?? "",
+    objClomid?.ScreenArgs?.TaskName ?? "",
+    outcomeStatusToSave,
+    objClomid?.ScreenArgs?.UserRole ?? "",
+    objClomid?.NextTask?.Task?.TaskName ?? "",
+    SelectedCptcode ?? "");
+            /* --- Save Outcome Received -- */
+            if (isRn && isSnr)
+            {
+                objOutcomeController.SaveReceived(
+                    objClomid?.ScreenArgs?.Contract ?? "",
+                    objClomid?.ScreenArgs?.UserName ?? "",
+                    objClomid?.ScreenArgs?.AuthNumber ?? "",
+                    objClomid?.ScreenArgs?.MemberID ?? "",
+                    objClomid?.ServiceData?.AdjudicatedService ?? "",
+                    objClomid?.TaskDetails?.Speciality ?? "");
+            }
+            InsertAttachments(objClomid, objClomid?.ScreenArgs?.TaskID ?? "");
+            return new { ID = LatestOutPatientID };
+        }
+
+    }
+}
+#endregion
+
+
+

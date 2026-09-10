@@ -1,0 +1,2312 @@
+using DynamicATS.Common;
+using DynamicATS.Interface;
+using DynamicATS.Interfaces;
+using DynamicATS.Model;
+using DynamicATS.View;
+using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Configuration;
+using System.Diagnostics;
+using System.IO;
+using System.Linq;
+using System.Threading;
+using System.Web;
+using System.Windows;
+using System.Windows.Input;
+using WinDTO;
+using WinDTO.Tasks;
+using WinUIDTO.Interfaces;
+
+namespace DynamicATS.ViewModel
+{
+    public abstract class OutcomeBaseVM<T> : NotifyBase, ITaskViewModel, IWindowTimeHandler, IExtraVMProperties, ISelectedTextPropertyChanged
+    {
+        #region Constants
+
+        private string TempCoverFaxesPath = Convert.ToString(ConfigurationManager.AppSettings["TEMP_VIEW_DOCUMENTS_PATH"]);
+
+        public const string CMD_MSG_SAVE = "SAVE";
+        public const string CMD_MSG_CLOSE = "CLOSE";
+        public const string CMD_MSG_COLLAPSE = "COLLAPSE";
+        public const string CMD_MSG_EXPAND = "EXPAND";
+        public const string CMD_MSG_CHECKLIST = "CHECK";
+        private static Dictionary<string, string> CancelList = new Dictionary<string, string>();
+        private static Dictionary<string, string> AcetateList = new Dictionary<string, string>();
+        public WindowTimeManager _WindowTimeManager = null;
+        //string physicianportalurl = "https://www.winfertilityprovider.com/default.aspx?";
+        string physicianportalurl = ConfigurationManager.AppSettings["PHYSICIAN_PORTAL_URL"] ?? "";
+        #endregion
+
+        #region Variables 
+
+        private CheckList _checkListArgs = new CheckList();
+        CheckListModel checklistmodel = new CheckListModel();
+        private string _previousStatus;
+        private string _previousService;
+        private List<MissingFields> _missingFields = new List<MissingFields>();
+        private AttachDocumentsModel model1;
+        private AttachDocumentsModel model;
+        private AttachDocumentsModel model4;
+
+
+        #endregion
+
+        #region Constructor
+
+        public OutcomeBaseVM(string screen)
+        {
+            this.Screen = screen;
+            this.Init();
+
+        }
+
+        #endregion
+
+        #region Notifiable Properties
+
+        private List<ObjectBase> _CheckListDetails;
+
+        public List<ObjectBase> CheckListDetails
+        {
+            get { return this._CheckListDetails; }
+            set { this._CheckListDetails = value; this.Notify(nameof(this.CheckListDetails)); }
+        }
+        private List<OutcomeProcedureCodes> _completedCycles = new List<OutcomeProcedureCodes>();
+
+        public List<OutcomeProcedureCodes> CompletedCycles
+        {
+            get { return this._completedCycles; }
+            set { this._completedCycles = value; this.Notify(nameof(this.CompletedCycles)); }
+        }
+        private List<OutcomeProcedureCodes> _cancelledCycles = new List<OutcomeProcedureCodes>();
+
+        public List<OutcomeProcedureCodes> CancelledCycles
+        {
+            get { return this._cancelledCycles; }
+            set { this._cancelledCycles = value; this.Notify(nameof(this.CancelledCycles)); }
+        }
+
+
+        private string _TimeTaken;
+        public string TimeTaken
+        {
+            get { return this._TimeTaken; }
+            set { this._TimeTaken = value; this.Notify(nameof(this.TimeTaken)); }
+
+        }
+        private string _emailto;
+        public string Emailto
+        {
+            get { return _emailto; }
+            set { _emailto = value; this.Notify(nameof(this.Emailto)); }
+        }
+        private bool _isVisibleTags;
+        public bool IsVisibleTags
+        {
+            get { return _isVisibleTags; }
+            set { _isVisibleTags = value; this.Notify(nameof(this.IsVisibleTags)); }
+        }
+
+        private bool _isVisibleText;
+        public bool IsVisibleText
+        {
+            get { return _isVisibleText; }
+            set { _isVisibleText = value; this.Notify(nameof(this.IsVisibleText)); }
+        }
+        private string _planName;
+        public string PlanName
+        {
+            get { return this._planName; }
+            set { this._planName = value; this.Notify(nameof(this.PlanName)); }
+        }
+
+        public string IdleTime { get; set; }
+        private T _data;
+        public T Data
+        {
+            get { return this._data; }
+            set
+            {
+                this._data = value; this.Notify(nameof(this.Data));
+                /*---For CheckList---*/
+                dynamic data = this.Data;
+                string AuthNo = null, TaskID = null, OutcomeName = null;
+                try
+                {
+                    AuthNo = data.ScreenArgs.AuthNumber ?? "";
+                    TaskID = data.ScreenArgs.TaskID ?? "";
+                    this.MemberId = data.ScreenArgs.MemberID ?? "";
+                    OutcomeName = data.TaskDetails.ProcedureCode.Substring(0, 3);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine("An exception captured " + ex.Message);
+                }
+
+                this._checkListArgs = new CheckList()
+                {
+                    UserID = Utilities.Common.UserName,
+                    Contract = this.Contract ?? "",
+                    MemberID = this.MemberId ?? "",
+                    TaskName = OutcomeName == "HSG" ? "HSG" : this.Screen,
+                    AuthNo = AuthNo ?? "",
+                    TaskID = TaskID ?? "",
+                };
+                this.IsVisibleCheckList = this.checklistmodel.CheckListVisible(this._checkListArgs);
+                if (this.IsVisibleCheckList)
+                    this.CheckListDetails = this.checklistmodel.LoadCheckList(this._checkListArgs);
+                /*---End---*/
+            }
+        }
+
+        private string _title;
+        public string Title
+        {
+            get { return this._title; }
+            set { this._title = value; this.Notify(nameof(this.Title)); }
+        }
+        private bool isvisiblechecklist;
+
+        public bool IsVisibleCheckList
+        {
+            get { return isvisiblechecklist; }
+            set { isvisiblechecklist = value; this.Notify(nameof(this.IsVisibleCheckList)); }
+        }
+
+        private ObjectBase _selectedCycleType = new ObjectBase();
+        public ObjectBase SelectedCycleType
+        {
+            get { return this._selectedCycleType; }
+            set
+            {
+                this._selectedCycleType = value;
+                //if (this.SelectedCycleType.Text == "SNR")
+                //{
+                //    if (this.Data is OutcomeBase)
+                //    {
+                //        var data = this.Data as OutcomeBase;
+                //        data.ServiceData.OutcomeStatus = AppUtils.ATS_STATUS_SNR;
+                //    }
+                //}
+                this.Notify(nameof(this.SelectedCycleType));
+                if (this.SelectedCycleType.Text == "SNR")
+                    this.IsVisibleCheckList = false;
+                else
+                    this.IsVisibleCheckList = this.checklistmodel.CheckListVisible(this._checkListArgs);
+            }
+        }
+
+        private List<ObjectBase> _questionsList = new List<ObjectBase>();
+        public List<ObjectBase> QuestionsList
+        {
+            get { return this._questionsList; }
+            set { this._questionsList = value; this.Notify(nameof(this.QuestionsList)); }
+        }
+
+        private string _memberId;
+        public string MemberId
+        {
+            get { return this._memberId; }
+            set { this._memberId = value; this.Notify(nameof(this.MemberId)); }
+        }
+        private string _formatAuthNo;
+        public string FormatAuthNo
+        {
+            get { return this._formatAuthNo; }
+            set { this._formatAuthNo = value; this.Notify(nameof(this.FormatAuthNo)); }
+        }
+
+
+        private string _userID;
+        public string UserID
+        {
+            get { return this._userID; }
+            set { this._userID = value; this.Notify(nameof(this.UserID)); }
+        }
+
+        private string _contract;
+        public string Contract
+        {
+            get { return this._contract; }
+            set { this._contract = value; this.Notify(nameof(this.Contract)); }
+        }
+
+        private string _flag;
+        public string Flag
+        {
+            get { return this._flag; }
+            set { this._flag = value; this.Notify(nameof(this.Flag)); }
+        }
+
+
+        private Accumulator _Accumulator = new Accumulator();
+        public Accumulator Accumulator
+        {
+            get { return this._Accumulator; }
+            set { this._Accumulator = value; this.Notify(nameof(this.Accumulator)); }
+        }
+
+        private SendEmailVerification _inputSendEmailVerification = new SendEmailVerification();
+        public SendEmailVerification InputSendEmailVerification
+        {
+            get { return this._inputSendEmailVerification; }
+            set { this._inputSendEmailVerification = value; this.Notify(nameof(this.InputSendEmailVerification)); }
+        }
+
+        private EligibilityVerificationCarveout _eligibilityVerificationDetails = new EligibilityVerificationCarveout();
+        public EligibilityVerificationCarveout EligibilityVerificationEmailDetails
+        {
+            get { return this._eligibilityVerificationDetails; }
+            set { this._eligibilityVerificationDetails = value; this.Notify(nameof(this.EligibilityVerificationEmailDetails)); }
+        }
+        #endregion 
+
+        #region Properties
+
+        public string Screen { get; private set; }
+
+        public IUIViewModel ParentVM { get; set; }
+
+        public IWindowMsg View { get; set; }
+
+        public IUIWindow Window { get; set; }
+
+        public Action<ViewModelMsg> Callback { get; set; }
+
+        public OutcomeBaseModel<T> Model { get; set; }
+
+        public TaskBaseModel<T> Model1 { get; set; }
+
+        public ICommand CommonCommand { get { return new ATSCommand(HandleCommand); } }
+
+        public string OutPatientIdResult { get; set; }
+
+        #endregion
+
+        #region List Properties
+
+        private List<ObjectBase> _attachments;
+        public List<ObjectBase> Attachments
+        {
+            get { return this._attachments; }
+            set { this._attachments = value; this.Notify(nameof(this.Attachments)); }
+        }
+
+        private List<string> _statusList;
+        public List<string> StatusList
+        {
+            get { return this._statusList; }
+            set { this._statusList = value; this.Notify(nameof(this.StatusList)); }
+        }
+
+        private List<ObjectBase> _cycleTypeList;
+        public List<ObjectBase> CycleTypeList
+        {
+            get { return this._cycleTypeList; }
+            set { this._cycleTypeList = value; this.Notify(nameof(this.CycleTypeList)); }
+        }
+
+        private List<ObjectBase> _authReasonList;
+        public List<ObjectBase> AuthReasonList
+        {
+            get { return this._authReasonList; }
+            set { this._authReasonList = value; this.Notify(nameof(this.AuthReasonList)); }
+        }
+
+        private List<ObjectBase> _workQueueList;
+        public List<ObjectBase> WorkQueueList
+        {
+            get { return this._workQueueList; }
+            set { this._workQueueList = value; this.Notify(nameof(this.WorkQueueList)); }
+        }
+
+        private TaskNotifyOutput _PaymentRequestmail = new TaskNotifyOutput();
+        public TaskNotifyOutput PaymentRequestmail
+        {
+            get { return this._PaymentRequestmail; }
+            set { this._PaymentRequestmail = value; Notify(nameof(this.PaymentRequestmail)); }
+        }
+
+        private List<string> _priorityList;
+        public List<string> PriorityList
+        {
+            get { return this._priorityList; }
+            set { this._priorityList = value; this.Notify(nameof(this.PriorityList)); }
+        }
+
+        private List<ObjectBase> _cancellationReasonList;
+        public List<ObjectBase> CancellationReasonList
+        {
+            get { return this._cancellationReasonList; }
+            set { this._cancellationReasonList = value; this.Notify(nameof(this.CancellationReasonList)); }
+        }
+        private List<ObjectBase> _leoprolideDosageList;
+        public List<ObjectBase> LeoprolideDosageList
+        {
+            get { return this._leoprolideDosageList; }
+            set
+            {
+                this._leoprolideDosageList = value;
+                this.Notify(nameof(this.LeoprolideDosageList));
+            }
+        }
+        public string CPTCode { get; set; }
+        public string OutcomeType { get; set; }
+        public string IgenomixIntialService { get; set; }
+        public string IgenomixOutcomeType { get; set; }
+        public string Embriocount { get; set; }
+        public string OutcomeStatus { get; set; }
+        private ObjectBase _portalNotificationDetails;
+        public ObjectBase PortalNotificationDetails
+        {
+            get { return this._portalNotificationDetails; }
+            set { this._portalNotificationDetails = value; this.Notify(nameof(this.PortalNotificationDetails)); }
+        }
+
+        #endregion
+
+        #region Command
+
+        private void HandleCommand(object args)
+
+        {
+            try
+            {
+                if (this.OnPreExecuteCommand(args))
+                {
+                    if (args != null)
+                    {
+                        if (args is string)
+                        {
+                            string command = args.ToString().ToUpper().Trim();
+                            if (string.IsNullOrWhiteSpace(command) == false)
+                            {
+                                switch (command)
+                                {
+                                    case CMD_MSG_SAVE:
+                                        this.Save();
+                                        break;
+                                    case CMD_MSG_CLOSE:
+                                        //int Result = this.Window.MsgWindow.Show(WinUIDTO.ATSMsgType.Confirmation, "Changes will not be saved. Do you wish to continue? ", new string[] { "Yes", "No" });
+                                        //if (Result == 0)
+                                        //{
+                                        //    this.Close();
+                                        //}
+                                        //else if (Result == 1)
+                                        //{
+                                        //    return;
+                                        //}
+                                        this.Callback?.Invoke(new ViewModelMsg() { Message = AppUtils.MSG_CLOSE_SECTION });
+                                        OnClosing();
+                                        break;
+                                    case CMD_MSG_EXPAND:
+                                        this.View.Send(AppUtils.MSG_EXPAND_SECTIONS);
+                                        break;
+                                    case CMD_MSG_COLLAPSE:
+                                        this.View.Send(AppUtils.MSG_COLLAPSE_SECTIONS);
+                                        break;
+                                    case CMD_MSG_CHECKLIST:
+                                        if (this.Window != null && this.Window is IWindowMsg)
+                                        {
+                                            (this.Window as IWindowMsg).Send(MemberSnapshotVM.MSG_OPEN_CHECKLIST, CheckListDetails);
+                                        }
+                                        break;
+                                }
+                            }
+                        }
+                        else if (args is ObjectBase)
+                        { this.OpenDoc(args as ObjectBase); }
+                    }
+                    if ((OutPatientIdResult ?? "") != "")
+                    {
+                        this.OnPostExecuteCommand(args);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("An exception captured " + ex.Message);
+            }
+        }
+        //private void Close()
+        //{
+        //    if (this.Data != null)
+        //    {
+        //     this.Model.Close(this.Data);
+        //    }
+        //}
+        private void Save()
+        {
+            try
+            {
+                if (this.OnValidateInputs() && this.OutcomeHeaderValidation() && this.OnDateValidate() && CheckLock(this.Data))
+                {
+                    if (this.Data != null && this.Data is OutcomeBase)
+                    {
+                        OutcomeBase data = this.Data as OutcomeBase;
+
+
+                        if ((data?.ScreenArgs?.TaskName ?? "") == "Long Term Outcome")
+                        {
+                            OnCheckMissingFields();
+                        }
+                        else
+                        {
+                            if (data.ServiceData == null) { data.ServiceData = new OutcomeServiceData(); }
+
+                            /*----- CSA selecting SNR: AdjudicatedService is still set to "SNR"
+                                    via the normal path below so that when RN reopens the Certify
+                                    Outcome task, Cycle Type correctly pre-selects "SNR" (it is
+                                    derived from AdjudicatedService in Init()). Finalization (auth
+                                    status flip to SNR, denied-service row creation) is prevented
+                                    server-side via role checks in PremierOutcomeController /
+                                    OutcomeController, so the auth remains "Approval" until the RN
+                                    actually certifies with SNR. -----*/
+                            if (this.SelectedCycleType != null && string.IsNullOrWhiteSpace(this.SelectedCycleType.ID) == false)
+                            {
+                                data.ServiceData.AdjudicatedService = AppUtils.GetCycleTypeUniqueID(this.SelectedCycleType.ID);
+                                data.ServiceData.MainSection = AppUtils.GetCycleTypeMainSection(this.SelectedCycleType.ID);
+                            }
+                            /*----- Missing Fields Popup -----*/
+                            bool Certify = false;
+                            bool OnlyBlank = false;
+                            List<SectionMissingFieldInfo> sections = this.OnCheckMissingFields();
+                            string blankSections = string.Empty;
+                            try { blankSections = this.View.Send(AppUtils.MSG_BLANK_SECTIONS) as string; } catch { }
+                            if (string.IsNullOrWhiteSpace(blankSections) == false && sections.Count > 0)
+                            {
+                                List<string> blankSectionslist = blankSections.Split(',').ToList();
+
+                                List<string> sectionslist = new List<string>();
+                                foreach (var section in sections)
+                                    sectionslist.Add(section.Header);
+                                IEnumerable<string> Common = blankSectionslist.Except(sectionslist);
+                                string MissingBlankSection = string.Empty;
+                                foreach (var c in Common)
+                                {
+                                    if (string.IsNullOrWhiteSpace(MissingBlankSection) == false) { MissingBlankSection += ", "; }
+                                    MissingBlankSection += c;
+                                }
+                                if (string.IsNullOrWhiteSpace(MissingBlankSection) == false)
+                                {
+                                    var Mblank = new SectionMissingFieldInfo() { Header = MissingBlankSection, Fields = new List<string>() { "Please enter atleast one field" } };
+                                    sections.Add(Mblank);
+                                }
+                                var item = new SectionMissingFieldInfo() { Header = "Blank Section(s)", Fields = new List<string>() { blankSections } };
+                                if (sections.Count == 0) { sections.Add(item); OnlyBlank = true; }
+                                else { sections.Insert(0, item); }
+                            }
+                            if (sections.Count > 0)
+                            {
+                                bool queue = false;
+                                if (string.Compare(AppUtils.USER_ROLE_RN, Utilities.Common.Role ?? "", true) == 0)
+                                { if (OnlyBlank) { queue = true; } }
+
+                                if (data.ServiceData.OutcomeStatus == "Incomplete" || data.ServiceData.OutcomeStatus == "Missing Information" ||
+                                    data.ServiceData.OutcomeStatus == "Provider Data Entered")
+                                {
+                                    data.NextTask.Task.SendToQueue = new ObjectBase();
+                                    data.NextTask.Task.SendToQueue.Text = "My Personal Queue";
+                                }
+                                else if (data.ServiceData.OutcomeStatus == "Pending Clinical Review")
+                                {
+                                    data.NextTask.Task.SendToQueue.Text = "Pending Clinical Review";
+                                }
+                                else if (data.ServiceData.OutcomeStatus == "Nurse Certified")
+                                {
+                                    data.NextTask.Task.SendToQueue.Text = "Pending Clinical Review";
+                                    data.ServiceData.OutcomeStatus = "Pending Clinical Review";
+                                }
+                                else if (data.ServiceData.OutcomeStatus == "CSA Data Entered" ||
+                                    data.ServiceData.OutcomeStatus == "CSA Data Reviewed")
+                                {
+                                    data.NextTask.Task.SendToQueue.Text = "Primary UM Queue";
+                                }
+                                else
+                                {
+                                    data.NextTask.Task.SendToQueue = null;
+                                }
+
+
+
+                                MissingFieldPopupVM datacontext = new MissingFieldPopupVM()
+                                {
+                                    MissingReasonList = this.AuthReasonList,
+                                    SelectedAuthReasonList = data.TaskDetails.Reasons,
+                                    SectionList = sections,
+                                    QueueList = WorkQueueList,
+                                    RNQueue = queue,
+                                    SelectQueue = data.NextTask.Task.SendToQueue//,
+                                    //MemberID = this.MemberId,
+                                    //SectionName = this.Screen,
+                                    //Contract = this.Contract,
+                                };
+                                this.View.Send(AppUtils.MSG_MISSING_FIELD, datacontext);
+
+                                if (datacontext.Status == 0)
+                                { Certify = true; data.ServiceData.OutcomeStatus = "Nurse Certified"; }
+                                else if (datacontext.Status == 2)
+                                { return; }
+                                else if (datacontext.Status == 1)
+                                { data.NextTask.Task.SendToQueue.Text = datacontext.SelectQueue.Text; }
+
+                            }
+                            else if (sections.Count == 0)
+                            {
+                                if ((data?.ScreenArgs?.UserRole ?? "") == "CSA")
+                                {
+                                    //if ((data?.ScreenArgs?.TaskName ?? "") == "Enter Outcome") { data.ServiceData.OutcomeStatus = "CSA Data Entered"; }
+                                    if ((data?.ScreenArgs?.TaskName ?? "") == "Review Online Outcome") { data.ServiceData.OutcomeStatus = "CSA Data Reviewed"; }
+                                }
+
+                                else
+                                {
+                                    if (data.ServiceData.OutcomeStatus == "Incomplete" || data.ServiceData.OutcomeStatus == "Missing Information" ||
+                                   data.ServiceData.OutcomeStatus == "Pending Clinical Review")
+                                    { Certify = false; }
+
+                                    else
+                                    {
+                                        Certify = true;
+                                        data.ServiceData.OutcomeStatus = "Nurse Certified";
+                                    }
+
+
+
+                                }
+                            }
+                            /*----- Nurse Certification Popup -----*/
+                            if (Certify)
+                            {
+                                if (string.Compare(AppUtils.USER_ROLE_RN, Utilities.Common.Role ?? "", true) == 0)
+                                {
+                                    bool showNurseCertifyScreen = true;
+                                    if (string.Compare((this._previousStatus ?? "").Trim(), AppUtils.ATS_STATUS_NURSE_CERTIFIED, true) == 0)
+                                    {
+                                        if (this.Window.MsgWindow.Show(WinUIDTO.ATSMsgType.Confirmation, "Do you want to re-certify?", new string[] { "Yes", "No" }) != 0)
+                                        { showNurseCertifyScreen = false; }
+                                    }
+
+
+
+                                    if (showNurseCertifyScreen == true)
+                                    {
+                                        string TempSystemDetermineService = string.Empty;
+                                        ObjectBase TempPreviousService = new ObjectBase();
+                                        string Temp = string.Empty;
+                                        ///// string Embriocount = string.Empty;
+
+                                        if (this.SelectedCycleType.Text.Contains("/")) { TempSystemDetermineService = (this.SelectedCycleType.Text.Split(new char[] { '/' })[1] ?? "").Trim(); }
+                                        TempPreviousService = this.CycleTypeList.Find((x) => { return string.Compare(this._previousService ?? "", x.ID, true) == 0; });
+                                        if (TempPreviousService != null)
+                                        {
+                                            if (TempPreviousService.Text.Contains("/")) { Temp = (TempPreviousService.Text.Split(new char[] { '/' })[1] ?? "").Trim(); }
+                                        }
+                                        if (data.ServiceData.InitialCPTCode.Equals("Global IVF"))
+                                        {
+                                            this.RenderAsPerInitiallyApproved = false;
+                                        }
+                                        else
+                                        {
+                                            this.RenderAsPerInitiallyApproved = true;
+                                        }
+                                        if (Data != null && Data is FET)
+                                        {
+                                            this.CPTCode = "FETA";
+                                            this.OutcomeType = "fet";
+                                        }
+                                        else if (Data != null && Data is Clomid)
+                                        {
+                                            this.CPTCode = "Clomid";
+                                            this.OutcomeType = "clo";
+                                        }
+                                        else if (Data != null && Data is Surgical)
+                                        {
+                                            this.CPTCode = "Surgical";
+                                            this.OutcomeType = "sur";
+                                        }
+                                        else if (Data != null && Data is NaturalCycle)
+                                        {
+                                            this.CPTCode = "NaturalCycle";
+                                            this.OutcomeType = "nc";
+                                        }
+                                        else if (Data != null && Data is IVFDonor)
+                                        {
+                                            this.CPTCode = "IVFDonar";
+                                            this.OutcomeType = "ivfdon";
+                                        }
+                                        else if (Data != null && Data is IVF)
+                                        {
+                                            this.CPTCode = "IVF";
+                                            this.OutcomeType = "ivf";
+                                        }
+                                        else if (Data != null && Data is Gonadotropin)
+                                        {
+                                            this.CPTCode = "Gonadotropin";
+                                            this.OutcomeType = "gon";
+                                        }
+                                        else if (Data != null && Data is Diagnostic)
+                                        {
+                                            this.CPTCode = "Diagnostic";
+                                            this.OutcomeType = "dia";
+                                        }
+                                        else if (Data != null && Data is MedicalTreatment)
+                                        {
+                                            this.CPTCode = "MEDTR";
+                                            this.OutcomeType = "medt";
+                                        }
+                                        else if (Data != null && Data is Oocyte)
+                                        {
+                                            this.CPTCode = "Oocyte";
+                                            this.OutcomeType = "oocyte";
+                                        }
+                                        else if (Data != null && Data is OCP)
+                                        {
+                                            this.CPTCode = "OCP";
+                                            this.OutcomeType = "oocytecryo";
+                                        }
+                                        else if (Data != null && Data is Premier)
+                                        {
+                                            this.CPTCode = data.ServiceData.InitialCPTCode;
+                                            this.OutcomeType = "Premier";
+                                        }
+                                        else if (Data != null && Data is PremierDiagnostic)
+                                        {
+                                            this.CPTCode = "Diagnostic";
+                                            this.OutcomeType = "dia";
+                                        }
+
+                                        else if (Data != null && Data is Igenomix)
+                                        {
+                                            Igenomix igenomix = new Igenomix();
+                                            igenomix = this.Data as Igenomix;
+                                            this.CPTCode = this.SelectedCycleType.Text;
+                                            this.OutcomeType = "Igenomix";
+                                            this.IgenomixOutcomeType = "Y";
+                                            this.Embriocount = igenomix.EmbryosRecieved;
+                                            data.ServiceData.InitialCPTCode = this.SelectedCycleType.Text;
+                                            TempSystemDetermineService = this.SelectedCycleType.Text;
+                                            IgenomixIntialService = igenomix.InitialService;
+                                        }
+
+
+                                        RequestBase input = new RequestBase()
+                                        {
+                                            Contract = data.ScreenArgs.Contract ?? "",
+                                            MemberID = data.ScreenArgs.MemberID ?? "",
+                                            AuthNo = data.ScreenArgs.AuthNumber ?? "",
+                                            FormattedAuth = data.ScreenArgs.FormattedAuthNumber ?? "",
+                                        };
+                                        var List = this.Model.GetOutcomeCycles(input);
+
+                                        this.CompletedCycles = List.Where((x) => { return string.Compare("N", x.CancellationType, true) == 0; }).ToList<OutcomeProcedureCodes>();
+                                        this.CancelledCycles = List.Where((x) => { return string.Compare("Y", x.CancellationType, true) == 0; }).ToList<OutcomeProcedureCodes>();
+
+                                        NurseCertificationPopupVM datacontext = new NurseCertificationPopupVM()
+                                        {
+                                            UpcodeList = this.Model.GetCycleTypeUpcodes(this.CPTCode ?? "",
+                                                                data.ServiceData.InitialCPTCode, data.ScreenArgs.Contract, this.CycleTypeList, data.ScreenArgs.MemberID ?? "",
+                                                                data.ScreenArgs.AuthNumber ?? "", this.IgenomixOutcomeType, Embriocount),
+                                            // UpcodeList = AppUtils.GetCycleTypeUpcodes(this.CycleTypeList, data.ServiceData.AdjudicatedService, data.ServiceData.MainSection),
+                                            // DowncodeList = AppUtils.GetCycleTypeDowncodes(this.CycleTypeList, data.ServiceData.AdjudicatedService, data.ServiceData.MainSection),
+                                            DowncodeList = this.Model.GetCycleTypeDowncodes(this.CPTCode ?? "",
+                                                                    data.ServiceData.InitialCPTCode, data.ScreenArgs.Contract,
+                                                                    this.CycleTypeList, data.ScreenArgs.MemberID ?? "",
+                                                                    data.ScreenArgs.AuthNumber ?? "", this.IgenomixOutcomeType, Embriocount),
+
+                                            InitiallyApprovedService = data.ServiceData.InitialCPTCode ?? "",
+                                            PreviousCertifiedService = Temp,
+                                            SystemDeterminedService = TempSystemDetermineService ?? "",
+                                            RenderAsPerInitiallyApproved = RenderAsPerInitiallyApproved,
+                                            Contract = data.ScreenArgs.Contract ?? "",
+                                            IsvisibilityCompletedCanceled = false,
+                                            IsvisibilityUpcodeDowncode = false,
+                                            CompletedList = this.CompletedCycles,
+                                            CanceledList = this.CancelledCycles,
+                                            Accumulator = this.Accumulator,
+                                            NurseValidateEmbriocount = this.Embriocount,
+                                            AuthNumber = data.ScreenArgs.AuthNumber ?? "",
+                                            MemberID = data.ScreenArgs.MemberID ?? "",
+                                            OutcomeFormType = OutcomeType ?? "",
+                                            IgenomixIntiallyApproved = IgenomixIntialService ?? "",
+                                            SelectedCycleType = this.SelectedCycleType
+                                        };
+
+                                        datacontext.InitializeCycleType();
+
+                                        if (datacontext.OutcomeFormType == "Igenomix")
+                                        {
+                                            datacontext.InitiallyApprovedService = datacontext.IgenomixIntiallyApproved;
+                                        }
+                                        if (string.Equals(datacontext?.Contract, "JP MORGAN-NO DOI-PREMIER", StringComparison.OrdinalIgnoreCase))
+                                        {
+                                            if (string.Equals(datacontext.Contract, "JP MORGAN-NO DOI-PREMIER", StringComparison.OrdinalIgnoreCase) && Data is Igenomix)
+                                            {
+                                                datacontext.IsvisibilityUpcodeDowncode = true;
+                                            }
+                                            //&& (Data is PremierDiagnostic)
+                                            else
+                                            {
+                                                datacontext.IsvisibilityCompletedCanceled = true;
+                                            }
+
+                                        }
+                                        else
+                                        {
+                                            datacontext.IsvisibilityUpcodeDowncode = true;
+                                        }
+
+                                        try
+                                        {
+                                            var result = this.View.Send(AppUtils.MSG_NURSE_CERTIFIED, datacontext);
+                                            string[] temp = result.ToString().Split(',');
+                                            data.ScreenArgs.SNRReason = temp[0];
+                                            this.Accumulator.MedicalServiceCost = decimal.Parse(temp[1]);
+                                            this.Accumulator.WINMarginMedicalServiceCost = decimal.Parse(temp[2]);
+                                            PremierAuthModel _Premiermodel = new PremierAuthModel();
+                                            RequestBase Args = new RequestBase()
+                                            {
+                                                MemberID = data.ScreenArgs?.MemberID ?? "",
+                                                AuthNo = data.ScreenArgs?.AuthNumber ?? "",
+                                                Contract = data.ScreenArgs?.Contract ?? "",
+                                                UserID = data.ScreenArgs?.UserName ?? "",
+                                                RemainingBal = Accumulator.RemainingAccumulator.ToString() ?? "",
+                                                ServiceCost = Accumulator.MedicalServiceCost.ToString() ?? ""
+                                            };
+                                            this.PaymentRequestmail = _Premiermodel.GetInsuffAccumNotification(Args);
+                                            if ((this.PaymentRequestmail?.MailNotify ?? "") == "Yes")
+                                            {
+                                                if (this.Accumulator.BalanceAccumulator < 0)
+                                                {
+                                                    int msg = this.Window.MsgWindow.Show(WinUIDTO.ATSMsgType.Confirmation,
+                                                        "For the selected service, Member do not have enough accumulator balance in their account. Please click Proceed to Opt OOP option to proceed.",
+                                                        new string[] { "Proceed", "Go Back" });
+                                                    if (msg == 0)
+                                                    {
+
+                                                        new Thread(new ThreadStart(() =>
+                                                        {
+
+                                                            SendMailModel _model = new SendMailModel();
+                                                            string to = this.PaymentRequestmail?.MailTo ?? "";
+                                                            string cc = this.PaymentRequestmail?.MailCC ?? "";
+                                                            string bcc = this.PaymentRequestmail?.MailBCC ?? "";
+                                                            string[] emailto = (to).Split(';');
+                                                            string[] emailcc = (cc).Split(';');
+                                                            string[] emailbcc = (bcc).Split(';');
+
+                                                            _model.SendMail(new RequestBase { UserID = this.PaymentRequestmail?.MailId ?? "", Contract = data.ScreenArgs?.Contract ?? "" },
+                                                                this.PaymentRequestmail?.MailId ?? "",
+                                                                emailto, emailcc, emailbcc,
+                                                                this.PaymentRequestmail?.MailSubject ?? "",
+                                                                this.PaymentRequestmail?.MailBodyText, "", "");
+
+                                                        })).Start();
+                                                        _Premiermodel.InsertSendPaymentRequestDetails(Args);
+                                                        this.Window.MsgWindow.Show(WinUIDTO.ATSMsgType.Information, "Send Payment Request Email has been sent");
+                                                    }
+                                                    else if (msg == 1)
+                                                    {
+                                                        return;
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        catch (Exception ex)
+                                        {
+                                            Console.WriteLine("An exception captured " + ex.Message);
+                                        }
+
+
+                                        //for deducting SNR Additional Code Cost
+                                        //this.Accumulator.MedicalServiceCost += -(this.Accumulator.AddonCost);
+
+
+                                        if (!(string.IsNullOrWhiteSpace(data.ScreenArgs.SNRReason)))
+                                        {
+                                            data.NextTask.Notes += "Outcome SNRDenial Reason(s): " + Environment.NewLine + data.ScreenArgs.SNRReason + Environment.NewLine;
+                                        }
+                                        if (datacontext.Status)
+                                        {
+                                            if (datacontext.IsDowncodeEnabled)
+                                            {
+                                                data.ServiceData.AdjudicatedService = datacontext.DowncodeService.ID ?? "";
+                                                data.ServiceData.CPTCode = datacontext.DowncodeService.Text.Substring(datacontext.DowncodeService.Text.IndexOf("/") + 1);
+                                            }
+                                            else if (datacontext.IsUpcodeEnabled)
+                                            {
+
+                                                if (datacontext.UpcodeService.ID.Equals("S4020-SC-S4035"))
+                                                {
+                                                    data.ServiceData.AdjudicatedService = "S4035";
+                                                    data.ServiceData.CPTCode = datacontext.UpcodeService.Text.Substring(datacontext.UpcodeService.Text.IndexOf("/") + 1);
+                                                }
+                                                else
+                                                {
+                                                    data.ServiceData.AdjudicatedService = datacontext.UpcodeService.ID;
+                                                    data.ServiceData.CPTCode = datacontext.UpcodeService.Text.Substring(datacontext.UpcodeService.Text.IndexOf("/") + 1);
+                                                }
+                                            }
+
+                                            else if (datacontext.IsCompletedEnabled)
+                                            {
+                                                data.ServiceData.AdjudicatedService = datacontext?.CompletedService?.HCPCSCode;
+                                                data.ServiceData.CPTCode = datacontext?.CompletedService?.WinCode.Substring(datacontext.CompletedService.WinCode.IndexOf("/") + 1);
+                                                data.Amount = datacontext.CompletedService.ServiceRate;
+
+
+                                            }
+                                            else if (datacontext.IsCanceledEnabled)
+                                            {
+                                                data.ServiceData.AdjudicatedService = datacontext?.CanceledService?.HCPCSCode;
+                                                data.ServiceData.CPTCode = datacontext?.CanceledService?.WinCode.Substring(datacontext.CanceledService.WinCode.IndexOf("/") + 1);
+                                                data.Amount = datacontext.CanceledService.ServiceRate;
+                                            }
+                                            else if (datacontext.InitiallyApprovedService != "")
+                                            {
+                                                if (SelectedCycleType.Text == "SNR")
+                                                {
+                                                    data.ServiceData.AdjudicatedService = "SNR";
+                                                    data.ServiceData.CPTCode = data.ServiceData.InitialCPTCode;
+                                                    // data.ServiceData.OutcomeStatus = "Complete";
+                                                }
+                                                else
+                                                {
+                                                    data.ServiceData.AdjudicatedService = data.ServiceData.InitialHCPCCode; data.ServiceData.CPTCode = data.ServiceData.InitialCPTCode;
+                                                }
+                                            }
+                                            //if (data.ServiceData.OutcomeStatus == "Pending Clinical Review")
+                                            //{
+                                            //    // data.ServiceData.OutcomeStatus = "Pending Clinical Review";
+                                            //    // data.NextTask.Task.SendToQueue.Text = "Pending Clinical Review";
+                                            //}
+                                            //else
+                                            //{
+                                            //    data.ServiceData.OutcomeStatus = "Nurse Certified";
+                                            //}
+                                        }
+                                        else
+                                        {
+                                            // data.ServiceData.OutcomeStatus = "Pending Clinical Review";
+                                            //data.NextTask.Task.SendToQueue.Text = "Pending Clinical Review";
+                                            if (this.Window.MsgWindow.Show(WinUIDTO.ATSMsgType.Confirmation, "Do you wish to Save and Close the task?", new string[] { "Yes", "No" }) == 1)
+                                            {
+                                                return;
+                                            }
+                                            else
+                                            {
+                                                data.ServiceData.OutcomeStatus = "Pending Clinical Review";
+                                                data.NextTask.Task.SendToQueue = new ObjectBase();
+                                                data.NextTask.Task.SendToQueue.Text = "Pending Clinical Review";
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        if ((data?.ServiceData?.CPTCode ?? "") == "")
+                        {
+                            data.ServiceData.CPTCode = data.ServiceData.InitialCPTCode ?? "";
+                        }
+                        try
+                        {
+                            if (((data?.ServiceData?.OutcomeStatus ?? "") == "Nurse Certified") || (this.SelectedCycleType.Text == "SNR") || (data?.ServiceData?.AdjudicatedService == "SNR"))
+                            {
+                                if (data.ServiceData.OutcomeStatus == "Nurse Certified")
+                                {
+                                    OutcomeStatus = "Nurse Certified";
+                                }
+
+                                PortalNotificationDetails = this.Model.GetPortalNotificationDetails(data.ScreenArgs);
+                                // this.PortalNotificationDetails = result;
+                                if (PortalNotificationDetails != null)
+                                {
+                                    string encryptOutcomeType = Utilities.Utilities.Encrypt(this.OutcomeType ?? "");
+                                    string encryptContract = Utilities.Utilities.Encrypt(data.ScreenArgs.Contract ?? "");
+                                    string encryptAuthNo = Utilities.Utilities.Encrypt(data.ScreenArgs.AuthNumber ?? "");
+                                    string encryptFormatAuthNo = Utilities.Utilities.Encrypt(data.ScreenArgs.FormattedAuthNumber ?? "");
+                                    string encryptMemberid = Utilities.Utilities.Encrypt(data.ScreenArgs.MemberID ?? "");
+                                    string encryptTaskID = Utilities.Utilities.Encrypt(data.ScreenArgs.TaskID ?? "");
+                                    string encryptOutpatientID = Utilities.Utilities.Encrypt(data.ScreenArgs.OutPatientID ?? "");
+                                    string CptCode = Utilities.Utilities.Encrypt(data.ServiceData.CPTCode ?? "");
+                                    string Portaluser = Utilities.Utilities.Encrypt(PortalNotificationDetails.Text ?? "");
+                                    string GroupID = Utilities.Utilities.Encrypt(PortalNotificationDetails.Tag ?? "");
+                                    string status = Utilities.Utilities.Encrypt("Completed Outcome");
+                                    string PortalSwitchDate = Utilities.Utilities.Encrypt(PortalNotificationDetails.ID ?? "");
+                                    string ContractType = Utilities.Utilities.Encrypt("Managed");
+                                    //string Weblink = physicianportalurl + "qsp=" + HttpUtility.UrlEncode(encryptOutcomeType) + "&qsc=" + HttpUtility.UrlEncode(encryptContract) + "&qsa=" + HttpUtility.UrlEncode(encryptAuthNo) + "&qscpt=" + HttpUtility.UrlEncode(CptCode) + "&qsusr=" + HttpUtility.UrlEncode(Portaluser) + "&qsgr=" + HttpUtility.UrlEncode(GroupID) + "&qscls=" + HttpUtility.UrlEncode(status) + "&qssw=" + HttpUtility.UrlEncode(PortalSwitchDate) + "&qspr=" + HttpUtility.UrlEncode(ContractType);
+                                    string Weblink = physicianportalurl + "?sessioninfo=" + HttpUtility.UrlEncode(encryptMemberid)
+                                        + "&sessauno=" + HttpUtility.UrlEncode(encryptAuthNo) + "&sesstask=" + HttpUtility.UrlEncode(encryptTaskID)
+                                        + "&sesscpt=" + HttpUtility.UrlEncode(CptCode) + "&sessformauth=" + HttpUtility.UrlEncode(encryptFormatAuthNo)
+                                        + "&sessoutid=" + HttpUtility.UrlEncode(encryptOutpatientID) + "&sesscon=" + HttpUtility.UrlEncode(encryptContract);
+
+                                    string[] emailto = (PortalNotificationDetails.Additional).Split(',');
+                                    string[] emailcc = (PortalNotificationDetails.FirstName).Split(',');
+                                    string[] emailbcc = (PortalNotificationDetails.LastName).Split(',');
+                                    string EmailBody = string.Empty;
+                                    if (data.ScreenArgs.Contract == "HMO Illinois" || data.ScreenArgs.Contract == "CIGNA")
+                                    {
+                                        EmailBody = "You are getting this email to inform you that you submitted for request  : <a href="
+                                        + Weblink + ">" + data.ScreenArgs.FormattedAuthNumber + "</a>" + " to be outcomed as " +
+                                        data?.ServiceData?.InitialCPTCode + " After clinical review however it was nurse certified as " +
+                                        data?.ServiceData?.InitialCPTCode + " Kindly submit claim accordingly and call our offices with any questions.";
+                                    }
+                                    else
+                                    {
+                                        EmailBody = "You are getting this email to inform you that you submitted for request  : <a href="
+                                        + Weblink + ">" + data.ScreenArgs.FormattedAuthNumber + "</a>" + " to be outcomed as " +
+                                        data?.ServiceData?.InitialCPTCode + " After clinical review however it was nurse certified as " +
+                                        data?.ServiceData?.InitialCPTCode + ".";
+                                    }
+
+                                    //SendMail obj = new SendMail();
+                                    //obj.Send("encryptauth@win-healthcare.com", emailto, emailcc, emailbcc, "Portal Notifications : " + OutcomeStatus + " Outcome", EmailBody);
+                                    if (data.ServiceData.CPTCode != data.ServiceData.InitialCPTCode)
+                                    {
+                                        if (this.SelectedCycleType.Text != "SNR" || data?.ServiceData?.AdjudicatedService != "SNR")
+                                        {
+                                            SendMailModel _model = new SendMailModel();
+                                            _model.SendMail(new RequestBase { UserID = "encryptauth@win-healthcare.com", Contract = data.ScreenArgs.Contract ?? "" },
+                                                "encryptauth@win-healthcare.com", emailto, emailcc, emailbcc, "Portal Notifications: " + OutcomeStatus + " Outcome", EmailBody, data.ScreenArgs.MemberID ?? "",
+    data.ScreenArgs.Contract ?? "");
+                                        }
+                                    }
+
+                                }
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine("An exception captured " + ex.Message);
+                        }
+
+                    }
+
+
+                    /*----- Save -----*/
+                    if (this.IsVisibleCheckList && this.CheckListDetails != null && this.CheckListDetails.Count > 0)
+                    {
+                        try
+                        {
+                            dynamic data = this.Data;
+                            if (this.CheckListDetails.Count(x => { return x.IsSelected == true; }) == 0 && (string.Equals(data.ServiceData.OutcomeStatus, "INCOMPLETE", StringComparison.OrdinalIgnoreCase) || string.Equals(data.ServiceData.OutcomeStatus, "MISSING INFORMATION", StringComparison.OrdinalIgnoreCase)))
+                            {
+                                this.Window.MsgWindow.Show(WinUIDTO.ATSMsgType.Alert, "Please select atleast one checklist item.");
+                                return;
+                            }
+                            else
+                            {
+                                if (!string.Equals(data.ServiceData.OutcomeStatus, "INCOMPLETE", StringComparison.OrdinalIgnoreCase) && !string.Equals(data.ServiceData.OutcomeStatus, "MISSING INFORMATION", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    if (this.CheckListDetails.Count(x => { return x.IsSelected == true; }) != this.CheckListDetails.Count)
+                                    {
+                                        string UnCheckedItems = string.Join(",", this.CheckListDetails
+                                        .Where(x => { return !x.IsSelected; })
+                                        .Select(x => { return x.Tag; })
+                                        .ToArray<string>());
+                                        this.Window.MsgWindow.Show(WinUIDTO.ATSMsgType.Alert, "Please select all the checklist items.  Unselected items are " + UnCheckedItems + ".");
+                                        return;
+                                    }
+
+                                }
+                                if (this._checkListArgs != null)
+                                {
+                                    this._checkListArgs.SelectedChecklist = string.Join(",", this.CheckListDetails
+                                        .Where(x => { return x.IsSelected; })
+                                        .Select(x => { return x.ID; })
+                                        .ToArray<string>());
+                                    checklistmodel.SaveCheckList(this._checkListArgs);
+                                }
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine("An exception captured " + ex.Message);
+                        }
+                    }
+                    this.FinallySaving();
+                }
+            }
+            catch (Exception ex) { throw ex; }
+        }
+
+        private void FinallySaving()
+        {
+            try
+            {
+                dynamic data = this.Data;
+
+                AttachDocumentsModel _model1 = new AttachDocumentsModel(MemberId, Contract);
+                RequestBase args1 = new RequestBase()
+                {
+                    MemberID = this.MemberId ?? "",
+                    Contract = this.Contract ?? ""
+                };
+
+                AttachDocumentsModel _model4 = new AttachDocumentsModel(MemberId, Contract);
+                RequestBase args4 = new RequestBase()
+                {
+                    MemberID = this.MemberId ?? "",
+                    Contract = this.Contract ?? ""
+                };
+
+
+                AttachDocumentsModel _model = new AttachDocumentsModel(MemberId, Contract);
+                RequestBase args = new RequestBase()
+                {
+                    MemberID = this.MemberId ?? "",
+                    Contract = this.Contract ?? ""
+                };
+
+
+                MemberSnapshotModel _model3 = new MemberSnapshotModel(Contract, MemberId, UserID);
+                RequestBase args2 = new RequestBase()
+                {
+                    MemberID = this.MemberId ?? "",
+                    Contract = this.Contract ?? "",
+                    UserID = this.UserID
+                };
+
+                if (data.ServiceData.OutcomeStatus == "Nurse Certified")
+                {
+
+
+                    TaskNotifyOutput ObjEmail = new TaskNotifyOutput();
+                    string Flag = "Outcome";
+                    string enccontract = HttpUtility.UrlEncode(Utilities.Utilities.Encrypt(this.Contract));
+                    string encryptMemberid = HttpUtility.UrlEncode(Utilities.Utilities.Encrypt(this.MemberId));
+                    string encryptLastUser = HttpUtility.UrlEncode(Utilities.Utilities.Encrypt(Utilities.Common.UserName));
+                    string encflag = HttpUtility.UrlEncode(Utilities.Utilities.Encrypt(Flag));
+                    string Weblink = string.Empty;
+                    string Weblink1 = string.Empty;
+
+                    Weblink1 = Convert.ToString(ConfigurationManager.AppSettings["ELIG_VERIFIY_URL"]);
+                    Weblink = Weblink1 + "?_qsc=" + enccontract + "&qsuid=" + encryptLastUser + "&qsmid=" + encryptMemberid + "&qsfg=" + encflag;
+                    RequestBase temp1 = new RequestBase()
+                    {
+                        Contract = this.Contract ?? "",
+                        MemberID = this.MemberId ?? "",
+                        FirstName = Weblink ?? "",
+                    };
+                    string qry_string = "_qsc=" + Utilities.Utilities.Encrypt(this.InputSendEmailVerification.FaxEmailData.Contract) +
+                     "&_qsm=" + Utilities.Utilities.Encrypt(this.InputSendEmailVerification.FaxEmailData?.Memberid) +
+                      "&_qsf=" + Utilities.Utilities.Encrypt(Flag) +
+                     "&_qsd=" + Utilities.Utilities.Encrypt(DateTime.Now.ToString());
+
+
+                    var objmail = _model1.EligibilityReTriggerEmail(temp1);
+                    RequestBase temp3 = new RequestBase()
+                    {
+                        Contract = this.Contract ?? "",
+                        MemberID = this.MemberId ?? "",
+                        FirstName = Weblink ?? "",
+                    };
+                    var result1 = _model.EligibilityEmail(temp3);
+
+                    RequestBase temp2 = new RequestBase()
+                    {
+                        Contract = this.Contract ?? "",
+                        MemberID = this.MemberId ?? "",
+                        UserID = UserID ?? ""
+                    };
+
+
+                    var requestBase = new RequestBase()
+                    {
+                        MemberID = this.MemberId ?? "",
+                        Contract = Contract ?? "",
+                        WebLink = qry_string,
+                        UserID = Utilities.Common.UserName
+                    };
+                    if (objmail.Emailtrigger.ID == "Y")
+                    {
+                        var mail_Details = _model3.GetEligibilityVerificationEmailDetails();
+
+                        var output = objmail.Emailtrigger;
+
+                        mail_Details.SecureEmail.To = string.Join(",", output);
+                        requestBase.UserID = this.InputSendEmailVerification.FaxEmailData?.MailDetails?.From ?? "";
+
+                        //_model2.SendMail1(requestBase, requestBase.UserID,
+                        //    mail_Details.To.Split(','),
+                        //    mail_Details.Cc.Split(','),
+                        //    mail_Details.Bcc.Split(','),
+                        //    mail_Details.Subject, mail_Details.Body, Contract, null);
+
+                        string to = mail_Details.SecureEmail.To ?? "";
+                        string cc = mail_Details.SecureEmail.Cc ?? "";
+                        string bcc = mail_Details.SecureEmail.Bcc ?? "";
+                        mail_Details.SecureEmail.Body = mail_Details.SecureEmail.Body + "<br/>" + result1 + "<br/>" + mail_Details.SecureEmail.Footer ?? "";
+                        string[] emailto = (to).Split(',');
+                        string[] emailcc = (cc).Split(',');
+                        string[] emailbcc = (bcc).Split(',');
+                        SendMailModel _model2 = new SendMailModel();
+
+
+                        _model2.SendMail1(new RequestBase()
+                        {
+                            UserID = mail_Details.SecureEmail.From ?? "",
+                            Contract = mail_Details.Contract ?? ""
+                        },
+                            mail_Details.SecureEmail.From ?? "",
+                            emailto, emailcc, emailbcc,
+                            mail_Details.SecureEmail.Subject ?? "",
+                            mail_Details.SecureEmail.Body ?? "",
+                            mail_Details.SecureEmail.Footer ?? "");
+
+                        //RequestBase temp5 = new RequestBase()
+                        //{
+                        //    MemberID = this.MemberId,
+                        //    Contract = Contract,
+
+                        //    ////Type = CheckedItems ?? "",
+                        //    UserName = Utilities.Common.UserName ?? ""
+
+                        //};
+                        //var result2 = _model1.InsertOutcomeClaimsEligibilityVerificationDetails(temp5);
+                        //this.EligibilityVerificationEmailDetails.UserName = Utilities.Common.UserName ?? "";
+
+                        AddNotesModel NotesModel = new AddNotesModel();
+                        NotesModel.Save(new NotesDetails()
+                        {
+                            MemberID = this.MemberId ?? "",
+                            Contract = Contract ?? "",
+                            Notes = Contract + Environment.NewLine + Environment.NewLine + "Email Subject: " + mail_Details.SecureEmail.Subject + Environment.NewLine + Environment.NewLine
+                            + objmail.Emailtrigger.Additional,
+
+                            AuthNo = "",
+                            UserName = Utilities.Common.UserName,
+                            NoteCategory = "1",
+                        });
+
+
+                    }
+                    RequestBase temp4 = new RequestBase()
+                    {
+                        MemberID = this.MemberId ?? "",
+                        Contract = Contract ?? "",
+                        AuthNo = data.ScreenArgs.FormattedAuthNumber ?? "",
+                        UserName = Utilities.Common.UserName ?? ""
+
+                    };
+                    var result = _model1.InsertOutcomeClaimsEligibilityVerificationDetails(temp4);
+                    this.EligibilityVerificationEmailDetails.UserName = Utilities.Common.UserName ?? "";
+
+                }
+
+                MissingFieldPopupVM datacontext = new MissingFieldPopupVM()
+                {
+                    MissingReasonList = this.AuthReasonList,
+                    SelectedAuthReasonList = data.TaskDetails.Reasons,
+                    //SectionList = sections,
+                    QueueList = WorkQueueList,
+                    //RNQueue = queue,
+                    SelectQueue = data.NextTask.Task.SendToQueue //,
+                                                                 //MemberID = this.MemberId,
+                                                                 //SectionName = this.Screen,
+                                                                 //Contract = this.Contract,
+                };
+                if (datacontext.SelectedAuthReasonList.Count > 0)
+                {
+                    if (datacontext.SelectedAuthReasonList.Any(x =>
+                    {
+                        return x.Text != null && (x.Text.Contains("Patient Reimbursement"));
+                    }))
+
+                    {
+                        data.NextTask.Notes = "OUTCOME REVIEW FOR AUTH#: " + data.ScreenArgs.FormattedAuthNumber + Environment.NewLine + "CERTIFIED AS: " + Environment.NewLine + "AUTH DATES: " + data.TaskDetails.DateFrom + "-" + data.TaskDetails.DateTo
+                             + Environment.NewLine + "START DATE :" + data?.TaskDetails?.OutcomeStartDate
+                             + Environment.NewLine + "AUTH TYPE :" + data?.AuthHeaderDetails?.AuthType + Environment.NewLine + "Medical Info:"
+                             + Environment.NewLine + "Patient reimbursed for services."
+                             ;
+                    }
+                }
+
+                OutPatientIdResult = this.Model.Save(this.Data);
+                if (this.Screen != AppUtils.SC_OUTCOME_LONG_TERM)
+                {
+                    if (string.IsNullOrWhiteSpace(OutPatientIdResult) == false)
+                    {
+                        this.Window.MsgWindow.Show(WinUIDTO.ATSMsgType.Information, "Outcome saved successfully.");
+                        this.Callback(new ViewModelMsg() { Message = AppUtils.MSG_CLOSE_SECTION });
+                        OnClosing();
+
+                    }
+                    else { this.Window.MsgWindow.Show(WinUIDTO.ATSMsgType.Error, "Operation failed, please try again."); }
+                }
+                else
+                {
+                    this.Window.MsgWindow.Show(WinUIDTO.ATSMsgType.Information, "Outcome saved successfully.");
+                    this.Callback(new ViewModelMsg() { Message = AppUtils.MSG_CLOSE_SECTION });
+                    OnClosing();
+
+                }
+                if (data.ScreenArgs.TaskName == "Review PGT Outcome" && data.ServiceData.OutcomeStatus == "Nurse Certified")
+                {
+                    try
+                    {
+                        WinDTO.RequestBase temp7 = new WinDTO.RequestBase()
+                        {
+                            MemberID = data?.ScreenArgs?.MemberID ?? "",
+                            Contract = data?.ScreenArgs?.Contract ?? "",
+                            AuthNo = data.ScreenArgs.AuthNumber ?? "",
+                            PlanName = data.PlanName ?? "",
+                            UserName = Utilities.Common.UserName ?? "",
+                            OutPatientId = data.OutPatientId ?? "",
+                            ID = data.ScreenArgs.TaskID ?? "",
+                        };
+                        DigitalSignatureModel Model2 = new DigitalSignatureModel();
+                        var res2 = Model2.InserReviewPgt(temp7);
+                    }
+                    catch { }
+                }
+            }
+
+            catch (Exception ex)
+            {
+                Console.WriteLine("An exception captured " + ex.Message);
+            }
+        }
+        private void OpenDoc(ObjectBase attachment)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(attachment.Tag) == false && (attachment.Tag.Contains("\\") || attachment.Tag.Contains("/")))
+                { try { Process.Start(attachment.Tag); } catch { this.Window.MsgWindow.Show(WinUIDTO.ATSMsgType.Error, "Unable to open document, please contact IT."); } }
+                else
+                {
+                    if (this.Data != null && this.Data is TaskBase)
+                    {
+                        TaskBase data = this.Data as TaskBase;
+
+                        string tempdocpath = TempCoverFaxesPath;
+                        string Targetpath = string.Empty;
+
+                        bool exists = System.IO.Directory.Exists(tempdocpath + "\\" + Utilities.Common.UserFullName + "\\" + data.ScreenArgs.Contract + "\\" + "Temp");
+                        if (exists)
+                        {
+                            Targetpath = tempdocpath + "\\" + Utilities.Common.UserFullName + "\\" + data.ScreenArgs.Contract + "\\" + "Temp";
+                        }
+                        else
+                        {
+                            System.IO.Directory.CreateDirectory(tempdocpath + "\\" + Utilities.Common.UserFullName + "\\" + data.ScreenArgs.Contract + "\\" + "Temp");
+                            Targetpath = tempdocpath + "\\" + Utilities.Common.UserFullName + "\\" + data.ScreenArgs.Contract + "\\" + "Temp";
+                        }
+
+                        byte[] bytes = this.Model.GetDocBytes(new DocBytesParams() { Contract = data.ScreenArgs.Contract, DocID = attachment.ID });
+                        if (bytes != null && bytes.Length > 0)
+                        {
+                            string filename = Targetpath;
+                            if (filename.Contains("\\") && filename.EndsWith("\\") == false) { filename += "\\"; }
+                            if (filename.Contains("/") && filename.EndsWith("/") == false) { filename += "/"; }
+                            filename += Guid.NewGuid().ToString() + attachment.Text;// + ".pdf";
+                            File.WriteAllBytes(filename, bytes);
+                            Process.Start(filename);
+                        }
+                        else if (string.IsNullOrWhiteSpace(attachment.Additional) == false)
+                        {
+                            //string filename = AppDomain.CurrentDomain.BaseDirectory;
+                            string filename = Targetpath;
+                            if (filename.Contains("\\") && filename.EndsWith("\\") == false) { filename += "\\"; }
+                            if (filename.Contains("/") && filename.EndsWith("/") == false) { filename += "/"; }
+                            filename += Guid.NewGuid().ToString() + attachment.Text; //+ ".pdf";
+                            File.WriteAllBytes(filename, Convert.FromBase64String(attachment.Additional));
+                            Process.Start(filename);
+                        }
+                        else { this.Window.MsgWindow.Show(WinUIDTO.ATSMsgType.Error, "Unable to open document, please contact IT."); }
+                    }
+                }
+
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("An exception captured " + ex.Message);
+            }
+        }
+
+        public ICommand RemoveAttachmentCommand
+        {
+            get
+            {
+                return new ATSCommand(new Action<object>((args) =>
+                {
+                    try
+                    {
+                        if (this.Window.MsgWindow.Show(WinUIDTO.ATSMsgType.Confirmation, "Do you want to remove this attachment? Are You Sure?", new string[] { "Yes", "No" }) == 0)
+                        {
+                            if (args != null && args is ObjectBase)
+                            {
+                                var SelectedAttachment = args as ObjectBase;
+                                if (Data is ExTaskBase)
+                                {
+                                    ExTaskBase data = Data as ExTaskBase;
+                                    //var list = data.NextTask.Attachments;
+                                    List<ObjectBase> list = new List<ObjectBase>();
+                                    if (data.NextTask.Attachments != null)
+                                    {
+                                        data.NextTask.Attachments.Remove(SelectedAttachment);
+                                        list = data.NextTask.Attachments;
+                                    }
+                                    data.NextTask.Attachments = null;
+                                    data.NextTask.Attachments = list as List<ObjectBase>;
+                                }
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine("An exception captured " + ex.Message);
+                    }
+                }));
+            }
+        }
+
+        private bool _renderAsPerInitiallyApproved;
+        public bool RenderAsPerInitiallyApproved
+        {
+            get { return this._renderAsPerInitiallyApproved; }
+            set { this._renderAsPerInitiallyApproved = value; this.Notify(nameof(RenderAsPerInitiallyApproved)); }
+
+        }
+
+        private void Init()
+        {
+            try
+            {
+                /*----- Status List -----*/
+                this.StatusList = AppUtils.GetOutcomeStatusList(Utilities.Common.Role);
+
+
+
+                /*----- Cancellation Reasons -----*/
+                var reasons = new List<ObjectBase>();
+
+                reasons.Add(new ObjectBase() { ID = "CI", Text = "Concurrent Illness" });
+                reasons.Add(new ObjectBase() { ID = "WP", Text = "Psychological" });
+                reasons.Add(new ObjectBase() { ID = "W$", Text = "Financial" });
+                reasons.Add(new ObjectBase() { ID = "RC", Text = "Residual Cyst" });
+                reasons.Add(new ObjectBase() { ID = "WF", Text = "Family Issues" });
+                reasons.Add(new ObjectBase() { ID = "PR", Text = "Poor Response" });
+                reasons.Add(new ObjectBase() { ID = "WO", Text = "Other" });
+                this.LeoprolideDosageList = new List<ObjectBase>();
+                this.LeoprolideDosageList.Add(new ObjectBase() { ID = "0", Text = "" });
+                this.LeoprolideDosageList.Add(new ObjectBase() { ID = "40", Text = "Microdose 40 mcg/0.1 - 0.5 ml" });
+                this.LeoprolideDosageList.Add(new ObjectBase() { ID = "50", Text = "Microdose 50 mcg/0.1 - 0.5 ml" });
+                this.LeoprolideDosageList.Add(new ObjectBase() { ID = "1", Text = "Generic 2 Week Kit 1 mg/0.2 mg" });
+                this.CancellationReasonList = reasons;
+                CancelList.Clear();
+                foreach (var item in CancellationReasonList)
+                {
+                    CancelList.Add(item.ID, item.Text);
+                }
+
+                AcetateList.Clear();
+                foreach (var item in LeoprolideDosageList)
+                {
+                    AcetateList.Add(item.ID, item.Text);
+                }
+                /*----- Task Priority List -----*/
+                this.PriorityList = new MedicalAuthModel().GetPriorityList("OutcomeBaseVM");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("An exception captured " + ex.Message);
+            }
+        }
+
+        private void LoadMissingFields()
+        {
+            List<MissingFields> fields = new List<MissingFields>(); // Ensure the variable is initialized
+
+            new Thread(new ThreadStart(() =>
+            {
+                OutcomeBase data = null;
+                try
+                {
+                    if (this.Data is OutcomeBase)
+                    {
+                        data = this.Data as OutcomeBase;
+                        if (data != null && data.ScreenArgs != null)
+                        {
+                            MissingFieldsParams args = new MissingFieldsParams();
+                            args.Contract = data.ScreenArgs.Contract ?? "";
+                            args.ContractID = data.ScreenArgs.ContractID ?? "";
+                            args.WINContractID = "";
+                            args.HelathPlanID = "";
+                            args.VMName = this.GetType().Name;
+                            fields = this.Model.MissingFields(args); // Assign the value here
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine("An exception captured: " + ex.Message);
+                    // Handle the exception as needed
+                }
+
+                // Update UI on the UI thread
+                Application.Current.Dispatcher.Invoke(new Action(() =>
+                {
+                    this._missingFields = fields;
+                }));
+            })).Start();
+        }
+
+        #endregion
+
+        #region Public Methods
+
+        public void Init(IUIWindow window, TaskScreenArgs args, Action<ViewModelMsg> callback = null)
+        {
+            try
+            {
+                this._WindowTimeManager = new WindowTimeManager(window as IUIWindow, this);
+                this._WindowTimeManager.ValidationEvent += () =>
+                {
+                    bool isValid = true;
+                    try
+                    {
+                        if (this.ParentVM != null && this.ParentVM is MemberSnapshotVM)
+                        {
+                            MemberSnapshotVM parent = this.ParentVM as MemberSnapshotVM;
+                            if (parent.TaskViewModelObject != null && parent.ShowOutcomeSection == false)
+                            { isValid = false; }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine("An exception captured " + ex.Message);
+                    }
+                    return isValid;
+                };
+                OutcomeBase data2 = this.Data as OutcomeBase;
+                RequestBase args1 = new RequestBase()
+                {
+                    Contract = data2?.ScreenArgs?.Contract ?? "",
+                    MemberID = data2?.ScreenArgs?.MemberID ?? "",
+                };
+
+                new RequestBase() { Contract = args.Contract, MemberID = args.MemberID, FormatAuthNo = args.FormattedAuthNumber };
+                var validation = this.Model.PatientReimbursementtestValidation(new RequestBase() { Contract = args.Contract, MemberID = args.MemberID, FormatAuthNo = args.FormattedAuthNumber });
+                if (validation.ID == "Yes")
+                {
+                    IsVisibleText = true;
+                }
+
+                /*----- Cycle Types -----*/
+                this.CycleTypeList = AppUtils.GetCycleTypeList(this.Screen, args.AuthCPTCode ?? "", args.Contract ?? "", args.AuthNumber ?? "");
+
+                /*----- Init all required local objects -----*/
+                this.Callback = callback;
+                this.Window = window;
+                if (args == null) { args = new TaskScreenArgs(); } else { this.Contract = args.Contract; this.MemberId = args.MemberID; }
+                this.OnPreInit(args);
+                this.Title = string.Format("{0} - {1}", args.TaskName ?? "", args.FormattedAuthNumber ?? "");
+
+                //if (args.Contract == "JP Morgan")
+                if (this.Screen == "Premier" || this.Screen == "PremierDiagnostic")
+                {
+                    this.CycleTypeList = new List<ObjectBase>();
+                    List<OutcomeProcedureCodes> lst = this.Model.GetOutcomeCycles(new RequestBase() { AuthNo = args.AuthNumber ?? "", Contract = args.Contract ?? "", MemberID = args.MemberID ?? "", FormattedAuth = args.FormattedAuthNumber ?? "" });
+                    foreach (var item in lst)
+                    {
+                        this.CycleTypeList.Add(new ObjectBase() { ID = item.HCPCSCode, Text = item.WinCode, Tag = item.OutcomeSections, LoginId = item.CancellationType, Additional = item.WinCodeDescription });
+                    }
+                }
+                if (this.Screen == "Igenomix")
+                {
+                    this.CycleTypeList = new List<ObjectBase>();
+                    IgenomixOutcomeModel model = new IgenomixOutcomeModel();
+                    List<OutcomeProcedureCodes> lst = model.GetIgenomixCycles(new TaskInfo() { TaskID = args.TaskID, Contact = args.Contract });
+                    foreach (var item in lst)
+                    {
+                        this.CycleTypeList.Add(new ObjectBase() { ID = item.WinCode, Text = item.WinCode });
+                    }
+                }
+                /*----- Loading Data From Server -----*/
+                this.Data = this.Model.GetData(args);
+                this.IsVisibleTags = false;
+                if (Data != null && Data is Clomid)
+                {
+                    Clomid data = this.Data as Clomid;
+                    if (!string.IsNullOrEmpty(data?.Cancellation?.CancelReason?.ID))
+                    {
+                        data.Cancellation.CancelReason.Text = CancelList[data.Cancellation.CancelReason.ID.ToString()] ?? "";
+                    }
+                    data.Cancellation.IsOtherVisible = false;
+                    if (data?.Cancellation?.CancelReason?.Text == "Other")
+                    {
+                        data.Cancellation.IsOtherVisible = true;
+                    }
+                }
+                if (Data != null && Data is FET)
+                {
+                    FET data = this.Data as FET;
+                    if (!string.IsNullOrEmpty(data?.Cancellation?.CancelReason?.ID))
+                    {
+                        data.Cancellation.CancelReason.Text = CancelList[data.Cancellation.CancelReason.ID.ToString()] ?? "";
+                    }
+
+                    data.Cancellation.IsOtherVisible = false;
+                    if (data?.Cancellation?.CancelReason?.Text == "Other")
+                    {
+                        data.Cancellation.IsOtherVisible = true;
+                    }
+
+                }
+                if (Data != null && Data is IVF)
+                {
+                    IVF data = this.Data as IVF;
+                    if (!string.IsNullOrEmpty(data?.Cancellation?.CancelReason?.ID))
+                    {
+                        data.Cancellation.CancelReason.Text = CancelList[data.Cancellation.CancelReason.ID.ToString()] ?? "";
+                    }
+                    if (!string.IsNullOrEmpty(data?.LeuprolideAcetateDosage?.ID))
+                    {
+                        data.LeuprolideAcetateDosage.Text = AcetateList[data.LeuprolideAcetateDosage.ID.ToString()] ?? "";
+                    }
+                    data.Cancellation.IsOtherVisible = false;
+                    if (data?.Cancellation?.CancelReason?.Text == "Other")
+                    {
+                        data.Cancellation.IsOtherVisible = true;
+                    }
+                }
+
+                if (Data != null && Data is IVFDonor)
+                {
+                    IVFDonor data = this.Data as IVFDonor;
+                    if (!string.IsNullOrEmpty(data?.Cancellation?.CancelReason?.ID))
+                    {
+                        data.Cancellation.CancelReason.Text = CancelList[data.Cancellation.CancelReason.ID.ToString()] ?? "";
+                    }
+                    if (!string.IsNullOrEmpty(data?.LeuprolideAcetateDosage?.ID))
+                    {
+                        data.LeuprolideAcetateDosage.Text = AcetateList[data.LeuprolideAcetateDosage.ID.ToString()] ?? "";
+                    }
+                    data.Cancellation.IsOtherVisible = false;
+                    if (data?.Cancellation?.CancelReason?.Text == "Other")
+                    {
+                        data.Cancellation.IsOtherVisible = true;
+                    }
+                }
+                if (Data != null && Data is Gonadotropin)
+                {
+                    Gonadotropin data = this.Data as Gonadotropin;
+                    if (!string.IsNullOrEmpty(data?.Cancellation?.CancelReason?.ID))
+                    {
+                        data.Cancellation.CancelReason.Text = CancelList[data.Cancellation.CancelReason.ID.ToString()] ?? "";
+                    }
+                    if (!string.IsNullOrEmpty(data?.LeuprolideAcetateDosage?.ID))
+                    {
+                        data.LeuprolideAcetateDosage.Text = AcetateList[data.LeuprolideAcetateDosage.ID.ToString()] ?? "";
+                    }
+                    data.Cancellation.IsOtherVisible = false;
+
+                    if (data?.Cancellation?.CancelReason?.Text == "Other")
+                    {
+                        data.Cancellation.IsOtherVisible = true;
+                    }
+                }
+
+                if (Data != null && Data is Surgical)
+                {
+                    Surgical data = this.Data as Surgical;
+                    if (!string.IsNullOrEmpty(data?.Cancellation?.CancelReason?.ID))
+                    {
+                        data.Cancellation.CancelReason.Text = CancelList[data.Cancellation.CancelReason.ID.ToString()] ?? "";
+                    }
+                    data.Cancellation.IsOtherVisible = false;
+
+                    if (data?.Cancellation?.CancelReason?.Text == "Other")
+                    {
+                        data.Cancellation.IsOtherVisible = true;
+                    }
+                }
+                if (Data != null && Data is NaturalCycle)
+                {
+                    NaturalCycle data = this.Data as NaturalCycle;
+                    if (!string.IsNullOrEmpty(data?.Cancellation?.CancelReason?.ID))
+                    {
+                        data.Cancellation.CancelReason.Text = CancelList[data.Cancellation.CancelReason.ID.ToString()] ?? "";
+                    }
+                    data.Cancellation.IsOtherVisible = false;
+
+                    if (data?.Cancellation?.CancelReason?.Text == "Other")
+                    {
+                        data.Cancellation.IsOtherVisible = true;
+                    }
+
+                }
+                if (Data != null && Data is Oocyte)
+                {
+                    Oocyte data = this.Data as Oocyte;
+                    if (!string.IsNullOrEmpty(data?.Cancellation?.CancelReason?.ID))
+                    {
+                        data.Cancellation.CancelReason.Text = CancelList[data.Cancellation.CancelReason.ID.ToString()] ?? "";
+                    }
+                    data.Cancellation.IsOtherVisible = false;
+
+                    if (data?.Cancellation?.CancelReason?.Text == "Other")
+                    {
+                        data.Cancellation.IsOtherVisible = true;
+                    }
+
+                }
+                if (Data != null && Data is OCP)
+                {
+                    OCP data = this.Data as OCP;
+                    if (!string.IsNullOrEmpty(data?.Cancellation?.CancelReason?.ID))
+                    {
+                        data.Cancellation.CancelReason.Text = CancelList[data.Cancellation.CancelReason.ID.ToString()] ?? "";
+                    }
+                    if (!string.IsNullOrEmpty(data?.LeuprolideAcetateDosage?.ID))
+                    {
+                        data.LeuprolideAcetateDosage.Text = AcetateList[data.LeuprolideAcetateDosage.ID.ToString()] ?? "";
+                    }
+                    data.Cancellation.IsOtherVisible = false;
+                    if (data?.Cancellation?.CancelReason?.Text == "Other")
+                    {
+                        data.Cancellation.IsOtherVisible = true;
+                    }
+                }
+                if (Data != null && Data is Premier)
+                {
+                    Premier data = this.Data as Premier;
+                    if (!string.IsNullOrEmpty(data?.Cancellation?.CancelReason?.ID))
+                    {
+                        data.Cancellation.CancelReason.Text = CancelList[data.Cancellation.CancelReason.ID.ToString()] ?? "";
+                    }
+                    if (!string.IsNullOrEmpty(data?.LeuprolideAcetateDosage?.ID))
+                    {
+                        data.LeuprolideAcetateDosage.Text = AcetateList[data.LeuprolideAcetateDosage.ID.ToString()] ?? "";
+                    }
+                    data.Cancellation.IsOtherVisible = false;
+                    if (data?.Cancellation?.CancelReason?.Text == "Other")
+                    {
+                        data.Cancellation.IsOtherVisible = true;
+                    }
+                    this.Accumulator = data.Accumulator;
+                }
+                if (Data != null && Data is PremierDiagnostic)
+                {
+                    PremierDiagnostic data = this.Data as PremierDiagnostic;
+
+                    this.Accumulator = data.Accumulator;
+                }
+
+
+
+                if (SelectedCycleType == null)
+                {
+                    this.SelectedCycleType.Text = "--Select--";
+                    this.SelectedCycleType.ID = "--Select";
+
+                }
+                this.PropertyChanged += SelectedCyclePropertyChangedHandler;
+                //this.Data.TaskDetails.PropertyChanged += TaskDetailsPropertyChangedHandler;
+
+                if (this.Data != null && this.Data is OutcomeBase)
+                {
+
+                    OutcomeBase data = this.Data as OutcomeBase;
+
+                    if (string.IsNullOrWhiteSpace(data.TaskDetails.PreviousNotes))
+                    {
+                        data.TaskDetails.PreviousNotes = "No previous notes available.";
+                    }
+                    if (Utilities.Common.IsNurse == true)
+                    {
+                        if (data.ScreenArgs?.TaskName == "Long Term Outcome")
+                        {
+
+                            data.NextTask.Notes = "OUTCOME REVIEW FOR AUTH#: " + data.ScreenArgs.FormattedAuthNumber + Environment.NewLine
+                            + "CERTIFIED AS: " + Environment.NewLine
+                            + "AUTH DATES: " + data.TaskDetails.DateFrom + "-" + data.TaskDetails.DateTo
+                                  + Environment.NewLine + "Medical Info:";
+
+                        }
+
+
+                        //else if (validation.Text == "Y")
+                        //{
+                        //    data.NextTask.Notes = "OUTCOME REVIEW FOR AUTH#: " + data.ScreenArgs.FormattedAuthNumber + Environment.NewLine + "CERTIFIED AS: " + Environment.NewLine + "AUTH DATES: " + data.TaskDetails.DateFrom + "-" + data.TaskDetails.DateTo
+                        //         + Environment.NewLine + "START DATE :" + data?.TaskDetails?.OutcomeStartDate
+                        //         + Environment.NewLine + "AUTH TYPE :" + data?.AuthHeaderDetails?.AuthType + Environment.NewLine + "Medical Info:"
+                        //         + Environment.NewLine + "Patient reimbursed for services."
+                        //         ;
+                        //}
+
+                        else
+                        {
+
+                            data.NextTask.Notes = "OUTCOME REVIEW FOR AUTH#: " + data.ScreenArgs.FormattedAuthNumber + Environment.NewLine + "CERTIFIED AS: " + Environment.NewLine + "AUTH DATES: " + data.TaskDetails.DateFrom + "-" + data.TaskDetails.DateTo
+                                  + Environment.NewLine + "START DATE :" + data?.TaskDetails?.OutcomeStartDate
+                                  + Environment.NewLine + "AUTH TYPE :" + data?.AuthHeaderDetails?.AuthType + Environment.NewLine + "Medical Info:"
+
+                                  ;
+                        }
+                    }
+                    if (data.ServiceData != null)
+                    {
+                        this._previousStatus = data.ServiceData.OutcomeStatus;
+                        this._previousService = data.ServiceData.AdjudicatedService;
+
+                        data.ServiceData.PropertyChanged += this.PropertyChangedHandler;
+                        data.ServiceData.Notify(nameof(data.ServiceData.OutcomeStatus));
+                        if ((data?.ServiceData?.OutcomeStatus ?? "") == "Complete")
+                        {
+                            data.ServiceData.OutcomeStatus = "Incomplete";
+                        }
+                    }
+                    if (((data?.ScreenArgs?.TaskName ?? "") == "Certify Outcome") && ((data?.ScreenArgs?.UserRole ?? "") == "CSA"))
+                    {
+                        data.ServiceData.IsEnableOutcomeStatus = false;
+                    }
+                    else { data.ServiceData.IsEnableOutcomeStatus = true; }
+
+                    if (((data?.ScreenArgs?.TaskName ?? "") == "Long Term Outcome"))
+                    {
+                        data.ServiceData.IsVisibleHeaderSec = false;
+                    }
+                    else { data.ServiceData.IsVisibleHeaderSec = true; }
+
+                    this.Title = string.Format("{0} - {1}", data.ScreenArgs.TaskName ?? "", data.ScreenArgs.FormattedAuthNumber ?? "");
+                    if (data.TaskDetails == null)
+                    { data.TaskDetails = new OutcomeTaskDetails() { Reasons = new List<ObjectBase>() }; }
+                    else if (data.TaskDetails.Reasons == null) { data.TaskDetails.Reasons = new List<ObjectBase>(); }
+                    /*----- Find the selected cycle type -----*/
+                    try
+                    {
+                        string serviceUniqueID = null;
+                        if (data.ServiceData.AdjudicatedService != null)
+                        {
+                            if (data.ServiceData.AdjudicatedService.Contains("/"))
+                            {
+                                serviceUniqueID = data.ServiceData?.AdjudicatedService;
+                            }
+                            else
+                            {
+                                serviceUniqueID = AppUtils.GetCycleTypeUniqueID(data.ServiceData?.AdjudicatedService, data.ServiceData?.MainSection);
+                            }
+                        }
+
+                        //string serviceUniqueID = "S0199/12";
+                        // if (!data.ServiceData.AdjudicatedService.Contains("/"))
+
+                        this.SelectedCycleType = this.CycleTypeList.Find((x) => { return string.Compare(serviceUniqueID ?? "", x.ID, true) == 0; });
+
+                        //if (data.ServiceData.AdjudicatedService != null)
+                        //{
+                        //    if (data.ServiceData.AdjudicatedService.Contains("/"))
+                        //        this.SelectedCycleType = this.CycleTypeList.FirstOrDefault((x) => { return string.Compare(data?.ServiceData?.AdjudicatedService, x.ID, true) == 0; });
+                        //}
+                    }
+                    catch { }
+                    //this.WorkQueueList = data.WorkQueues;
+                    this.WorkQueueList = this.Model.GetTaskTo(this.Contract);
+                    data.WorkQueues = null;
+                    this.AuthReasonList = data.AuthReasons;
+                    data.AuthReasons = null;
+                    if (data.NextTask != null)
+                    {
+                        this.Attachments = data.NextTask.Attachments;
+                        //data.NextTask.Attachments = null;
+                    }
+
+                    if (data.DateValidationCallback == null)
+                    { data.SetDateValidationCallback(); }
+                }
+
+                this.LoadMissingFields();
+                this.OnPostInit();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("An exception captured " + ex.Message);
+            }
+        }
+        private bool CheckLock(T args)
+        {
+            bool isAvailable = false;
+            try
+            {
+                var data = Data as ExTaskBase;
+                LockMember lockedBy = new MemberSnapshotModel().ManageMemberLock(new LockMember()
+                {
+                    Contract = data?.ScreenArgs?.Contract ?? "",
+                    UserName = Utilities.Common.UserName ?? "",
+                    TaskId = "",
+                    MemberId = data?.ScreenArgs?.MemberID ?? "",
+                    ProcessType = "Lock Check"
+                });
+                isAvailable = (string.Compare(lockedBy.UserName, null) == 0);
+                if (string.Equals(lockedBy?.UserName, Utilities.Common.UserFullName, StringComparison.OrdinalIgnoreCase))
+                { isAvailable = true; }
+                if (!isAvailable)
+                {
+                    if ((lockedBy?.UserName ?? "") == "Inactive Member")
+                    {
+                        // this.Window.MsgWindow.Show(WinUIDTO.ATSMsgType.Information, "Inactive/Duplicate member profile case, Please contact ITProdSupport.");
+                        isAvailable = true;
+                    }
+                    else
+                    {
+                        this.Window.MsgWindow.Show(WinUIDTO.ATSMsgType.Information, "Member case is locked by " + (lockedBy?.UserName ?? ""));
+                    }
+                }
+            }
+            catch { isAvailable = true; }
+            return isAvailable;
+        }
+        private void SelectedCyclePropertyChangedHandler(object sender, PropertyChangedEventArgs e)
+        {
+            try
+            {
+                if (this.Data != null && this.Data is OutcomeBase)
+                {
+                    OutcomeBase data = this.Data as OutcomeBase;
+                    if (string.Compare(e.PropertyName, nameof(this.SelectedCycleType), true) == 0)
+                    {
+                        if (this.SelectedCycleType.Text == "SNR")
+                        {
+                            /* CSA intermediate SNR (CSA Data Entered / CSA Data Reviewed):
+                               route to RN via Certify Outcome in Primary UM Queue. RN commits SNR on certify. */
+                            if (!Utilities.Common.IsNurse
+                                && (string.Equals(data.ServiceData.OutcomeStatus, "CSA Data Entered", StringComparison.OrdinalIgnoreCase)
+                                    || string.Equals(data.ServiceData.OutcomeStatus, "CSA Data Reviewed", StringComparison.OrdinalIgnoreCase)))
+                            {
+                                if (data.NextTask == null) { data.NextTask = new NextTaskDetails(); }
+                                if (data.NextTask.Task == null) { data.NextTask.Task = new WinDTO.Tasks.TaskInfo(); }
+                                data.NextTask.Task.TaskName = "Certify Outcome";
+                                data.NextTask.Task.SendToQueue = new ObjectBase() { Text = "Primary UM Queue" };
+                                data.NextTask.Task.Priority = "Medium";
+                            }
+                            else
+                            {
+                                data.NextTask.Task.TaskName = "";
+                                data.NextTask.Task.SendToQueue = new ObjectBase();
+                                data.NextTask.Task.Priority = "";
+                            }
+                            if (Utilities.Common.IsNurse)
+                            { data.ServiceData.OutcomeStatus = "Complete"; }
+
+                        }
+                        else
+                        {
+                            if (data.NextTask == null)
+                            { data.NextTask = new NextTaskDetails(); }
+                            data.NextTask.Task = this.Model.GetNextTask(new NextTaskParams
+                            {
+                                Contract = data.ScreenArgs.Contract ?? "",
+                                UserRole = Utilities.Common.Role,
+                                TaskName = data.ScreenArgs.TaskName ?? "",
+                                TaskStatus = data.ServiceData.OutcomeStatus ?? ""
+                            });
+                        }
+                        if (string.Equals(this.SelectedCycleType.LoginId, "Y", StringComparison.OrdinalIgnoreCase))
+                        {
+                            RequestBase request = new RequestBase()
+                            {
+                                Contract = data?.ScreenArgs?.Contract ?? "",
+                                MemberID = data?.ScreenArgs?.MemberID ?? "",
+                                AuthNo = data?.ScreenArgs?.AuthNumber ?? "",
+                                AAPTaskid = data.ScreenArgs.TaskID,
+                                OutPatientId = data?.AuthHeaderDetails?.OutpatientId ?? "",
+                                AuthStatus = (data?.AuthHeaderDetails?.AuthStatus?.Text ?? ""),
+                                UserName = data?.AuthHeaderDetails.LastUser ?? "",
+                                WebLink = data?.TaskDetails?.ProcedureCode ?? ""
+                            };
+                            var result = this.View.Send(AppUtils.MSG_SNRDENIEL_REASON, request);
+                            data.ScreenArgs.SNRReason = result?.ToString() ?? "";
+                            if (!(string.IsNullOrWhiteSpace(data.ScreenArgs.SNRReason)))
+                            {
+                                data.NextTask.Notes += "Outcome SNRDenial Reason(s): " + Environment.NewLine + data.ScreenArgs.SNRReason + Environment.NewLine;
+                            }
+
+                        }
+                    }
+
+                }
+                if (this.Data != null && this.Data is Igenomix)
+                {
+                    Igenomix data = this.Data as Igenomix;
+                    if (string.Compare(e.PropertyName, nameof(this.SelectedCycleType), true) == 0)
+                    {
+                        IgenomixOutcomeVM._selectedCycle = SelectedCycleType;
+
+                    }
+                }
+                if (this.Data != null && this.Data is Premier)
+                {
+                    Premier data = this.Data as Premier;
+                    if (string.Compare(e.PropertyName, nameof(this.SelectedCycleType), true) == 0)
+                    {
+                        if (this.SelectedCycleType.ID == "IUI-2-INS-CYC")
+                        {
+                            data.IsVisibleSecondInseminationDate = true;
+                        }
+                        else
+                        {
+                            data.IsVisibleSecondInseminationDate = false;
+                        }
+
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("An exception captured " + ex.Message);
+            }
+        }
+
+        public bool OnClosing()
+        {
+            this._WindowTimeManager.Stop();
+            //TimeInterval obj = new TimeInterval()
+            //{
+            //    UserName = Utilities.Common.UserFullName,
+            //    MemberID = this.MemberId ?? "",
+            //    FormName = "Membersnapshot",
+            //    SectionName = "Outcome Base - " + this.Screen,
+            //    Contract = this.Contract ?? "",
+            //    TimeTaken = this.TimeTaken,
+            //    IdleTime = this.IdleTime
+            //};
+            //TimeIntervalModel objTimeIntervalModel = new TimeIntervalModel();
+            //objTimeIntervalModel.SaveTimeInterval(obj);
+            return true;
+        }
+        #endregion
+
+        #region Event Handlers
+
+        private void PropertyChangedHandler(object sender, PropertyChangedEventArgs e)
+        {
+            try
+            {
+                if (this.Data != null && this.Data is OutcomeBase)
+                {
+                    OutcomeBase data = this.Data as OutcomeBase;
+                    if (string.Compare(e.PropertyName, nameof(data.ServiceData.OutcomeStatus), true) == 0)
+                    {
+                        if ((data?.ScreenArgs?.TaskName ?? "") != "Long Term Outcome")
+                        {
+                            if (this.SelectedCycleType?.Text == "SNR")
+                            {
+                                /* CSA intermediate SNR: pre-fill next task as Certify Outcome → Primary UM Queue */
+                                if (!Utilities.Common.IsNurse
+                                    && (string.Equals(data.ServiceData.OutcomeStatus, "CSA Data Entered", StringComparison.OrdinalIgnoreCase)
+                                        || string.Equals(data.ServiceData.OutcomeStatus, "CSA Data Reviewed", StringComparison.OrdinalIgnoreCase)))
+                                {
+                                    if (data.NextTask == null) { data.NextTask = new NextTaskDetails(); }
+                                    if (data.NextTask.Task == null) { data.NextTask.Task = new WinDTO.Tasks.TaskInfo(); }
+                                    data.NextTask.Task.TaskName = "Certify Outcome";
+                                    data.NextTask.Task.SendToQueue = new ObjectBase() { Text = "Primary UM Queue" };
+                                    data.NextTask.Task.Priority = "Medium";
+                                }
+                                else
+                                {
+                                    data.NextTask.Task.TaskName = "";
+                                    data.NextTask.Task.SendToQueue = new ObjectBase();
+                                    data.NextTask.Task.Priority = "";
+                                }
+
+                            }
+                            else
+                            {
+                                if (data.NextTask == null)
+                                { data.NextTask = new NextTaskDetails(); }
+                                string temp = string.Empty;
+
+                                if (string.IsNullOrWhiteSpace(data?.NextTask?.Task?.SendToQueue?.Text ?? "") == false)
+                                {
+                                    temp = data.NextTask.Task.SendToQueue.Text ?? "";
+                                }
+                                if (data.NextTask.Task.SendToQueue.Text == "My Personal Queue" && data.ServiceData.OutcomeStatus == "CSA Data Entered")
+                                {
+                                    temp = string.Empty;
+                                }
+                                else
+                                {
+                                    data.NextTask.Task.SendToQueue = new ObjectBase() { Text = "" };
+                                }
+                                data.NextTask.Task = this.Model.GetNextTask(new NextTaskParams
+                                {
+                                    Contract = data.ScreenArgs.Contract ?? "",
+                                    UserRole = Utilities.Common.Role,
+                                    TaskName = data.ScreenArgs.TaskName ?? "",
+                                    TaskStatus = data.ServiceData.OutcomeStatus ?? ""
+                                });
+                                if (temp != string.Empty)
+                                {
+                                    data.NextTask.Task.SendToQueue.Text = temp;
+                                }
+                                try
+                                {
+                                    if (data.ServiceData.OutcomeStatus == "Pending Clinical Review")
+                                    {
+                                        data.NextTask.Task.SendToQueue.Text = "Pending Clinical Review";
+                                    }
+                                }
+                                catch (Exception ex)
+                                {
+                                    Console.WriteLine("An exception captured " + ex.Message);
+                                }
+                            }
+                        }
+                        else
+                        {
+                            if (data.NextTask == null)
+                            { data.NextTask = new NextTaskDetails(); }
+                            data.NextTask.Task = this.Model.GetNextTask(new NextTaskParams
+                            {
+                                Contract = data.ScreenArgs.Contract ?? "",
+                                UserRole = Utilities.Common.Role,
+                                TaskName = data.ScreenArgs.TaskName ?? "",
+                                TaskStatus = data.ServiceData.OutcomeStatus ?? ""
+                            });
+                        }
+                        switch (data.ServiceData.OutcomeStatus)
+                        {
+                            case AppUtils.ATS_STATUS_INCOMPLETE:
+                            case AppUtils.ATS_STATUS_MISSING_INFO:
+                            case AppUtils.ATS_STATUS_PROVIDER_DATA_ENTERED:
+                            case AppUtils.ATS_STATUS_DUPLICATE_INCORRECT:
+                                //case AppUtils.ATS_STATUS_SNR:
+                                data.ServiceData.OutcomeStatusColor = "#FF0000"; //Red
+                                break;
+                            case AppUtils.ATS_STATUS_CSA_DATA_REVIEWED:
+                            case AppUtils.ATS_STATUS_NURSE_CERTIFIED:
+                            case AppUtils.ATS_STATUS_COMPLETE:
+                            case AppUtils.ATS_STATUS_CSA_DATA_ENTERED:
+                                data.ServiceData.OutcomeStatusColor = "#009900"; //Green
+                                break;
+                            case AppUtils.ATS_STATUS_PENDING_CLINICAL_REVIEW:
+                                data.ServiceData.OutcomeStatusColor = "#FFAA00";// Orange
+                                break;
+                            default:
+                                data.ServiceData.OutcomeStatusColor = "#FFFFFF"; //White
+                                break;
+                        }
+
+
+                    }
+
+
+                }
+            }
+
+            catch (Exception ex)
+            {
+                Console.WriteLine("An exception captured " + ex.Message);
+            }
+        }
+
+        #endregion
+
+        #region Abstract Methods
+
+        protected abstract List<SectionMissingFieldInfo> OnCheckMissingFields();
+        protected abstract void OnPreInit(TaskScreenArgs args);
+        protected virtual void OnPostInit() { }
+        protected abstract bool OnPreExecuteCommand(object args);
+        protected abstract void OnPostExecuteCommand(object args);
+        protected abstract bool OnValidateInputs();
+        protected abstract bool OnDateValidate();
+
+        #endregion
+        public bool SelectedUserChanged(object propertyPath)
+        {
+            bool result = false;
+            try
+            {
+                var data = propertyPath as ObjectBase;
+
+                DateTime time = DateTime.Now.ToLocalTime();
+                DateTime EndTime = DateTime.Parse(data.LastName);
+                DateTime StartTime = DateTime.Parse(data.FirstName);
+                if (time < StartTime || time > EndTime)
+                {
+                    dynamic checkdata = this.Data;
+                    TaskScreenArgs args = new TaskScreenArgs()
+                    {
+                        TaskTo = data.Text ?? "",
+                        UserName = Utilities.Common.UserName ?? "",
+                        TaskName = checkdata.NextTask.Task.TaskName ?? "",
+                        Contract = checkdata.ScreenArgs.Contract ?? "",
+                        AuthCPTCode = checkdata.ScreenArgs.AuthCPTCode ?? checkdata.AuthHeaderDetails.ProcedureCode.Text ?? ""
+                    };
+                    var output = this.Model.IsValidQueue(args);
+                    List<string> _queuelist = new List<string>();
+                    _queuelist = output.Text.Split(',').ToList<string>();
+                    MemberSnapshotModel _model = new MemberSnapshotModel();
+                    RequestBase temp = new RequestBase()
+                    {
+                        UserID = Utilities.Common.UserName ?? "",
+                    };
+                    var res = _model.UserQChangeaccess(temp);
+                    try
+                    {
+                        if (res?.ID != "Y")
+                        {
+                            if (!(_queuelist.Contains(Utilities.Common.UserName)))
+                            {
+                                this.Window.MsgWindow.Show(WinUIDTO.ATSMsgType.Alert, "You are trying to assign to a user outside of their work shift time.");
+                                result = true;
+                            }
+                        }
+                        else { }
+                    }
+                    catch { }
+                }
+                else
+                {
+
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("An exception captured " + ex.Message);
+            }
+            return result;
+        }
+
+        #region Outcome Header Validation
+        private bool OutcomeHeaderValidation()
+        {
+            bool validate = true;
+            if (this.Data != null && this.Data is OutcomeBase)
+            {
+                OutcomeBase data = this.Data as OutcomeBase;
+                if ((data?.ScreenArgs?.TaskName ?? "") != "Long Term Outcome")
+                {
+                    if ((this.SelectedCycleType?.Text ?? "") == "")
+                    {
+                        this.Window.MsgWindow.Show(WinUIDTO.ATSMsgType.Alert, "Cycle Type is missing."); return validate = false;
+                    }
+
+                    RequestBase args12 = new RequestBase()
+                    {
+                        Contract = this.Contract ?? "",
+                        MemberID = this.MemberId ?? "",
+                        UserID = Utilities.Common.UserName ?? ""
+                    };
+
+                    PremierRXModel _model = new PremierRXModel();
+                    var res2 = _model.GetMemberEligibilityValidation(args12);
+                    if (res2.ID == "Y" && data.ServiceData.OutcomeStatus == "Nurse Certified")
+                    {
+                        this.Window.MsgWindow.Show(WinUIDTO.ATSMsgType.Alert, res2.Text); return validate = false;
+                    }
+
+                    if (this.Data != null && this.Data is OutcomeBase)
+                    {
+                        //OutcomeBase data = this.Data as OutcomeBase;
+                        if ((data?.ServiceData?.OutcomeStatus ?? "") == "")
+                        {
+                            this.Window.MsgWindow.Show(WinUIDTO.ATSMsgType.Alert, "Outcome status is missing."); return validate = false;
+                        }
+                        if (((data?.ServiceData?.OutcomeStatus?.ToString() ?? "") == "Missing Information") || ((data?.ServiceData?.OutcomeStatus?.ToString() ?? "") == "Pending Clinical Review"))
+                        {
+                            if (data.TaskDetails.Reasons.Count == 0)
+                            {
+                                this.Window.MsgWindow.Show(WinUIDTO.ATSMsgType.Alert, "Please choose reasons."); return validate = false;
+                            }
+                        }
+                    }
+                }
+            }
+            try
+            {
+                OutcomeBase data = this.Data as OutcomeBase;
+                RequestBase args2 = new RequestBase()
+                {
+                    MemberID = this.MemberId ?? "",
+                    Contract = this.Contract ?? "",
+                    TaskStatus = data.ServiceData.OutcomeStatus ?? "",
+                    TaskName = data?.ScreenArgs?.TaskName ?? "",
+                    Selected_Date = data.TaskDetails.DateFrom ?? "",
+                    UserID = Utilities.Common.UserName ?? ""
+                };
+                ObjectBase TermedOut = new PremierAuthModel().termedout_DateValidation(args2);
+                if (TermedOut.ID == "Y")
+                {
+                    this.Window.MsgWindow.Show(WinUIDTO.ATSMsgType.Alert, TermedOut.Text);
+                    validate = false;
+                    data.ServiceData.OutcomeStatus = "Pending Clinical Review";
+                    return validate;
+                }
+                ObjectBase LegalAid = new PremierAuthModel().LegalAidLegalAid_EligVerification(args2);
+                //if (LegalAid.ID == "Y")
+                //{
+                //    this.Window.MsgWindow.Show(WinUIDTO.ATSMsgType.Alert, LegalAid.Text);
+                //    validate = false;
+                //    data.ServiceData.OutcomeStatus = "Pending Clinical Review";
+                //    return validate;
+                //}
+                if (LegalAid.ID == "L")
+                {
+                    int Result = this.Window.MsgWindow.Show(WinUIDTO.ATSMsgType.Confirmation, LegalAid?.Text, new string[] { "Proceed", "Decline" });
+                    if (Result == 0)
+                    {
+                        WinDTO.Tasks.ForwardEmailDetails obj = new WinDTO.Tasks.ForwardEmailDetails()
+                        {
+                            Memberid = this.MemberId ?? "",
+                            Contract = this.Contract ?? ""
+                        };
+                        SendEligibilityVerificationRequest objRequest = new SendEligibilityVerificationRequest(obj);
+                        objRequest.ShowDialog();
+                        var viewModelA1 = objRequest.DataContext as SendEligibilityVerificationRequestVM;
+                        if (viewModelA1.FaxEmailData.CloselegalButton == "True")
+                        {
+                            validate = false;
+                            data.ServiceData.OutcomeStatus = "Pending Clinical Review";
+                        }
+                        else
+                        {
+                            validate = true;
+                        }
+                        return validate;
+                    }
+                    else if (Result == 1)
+                    {
+                        validate = false;
+                        data.ServiceData.OutcomeStatus = "Pending Clinical Review";
+                        return validate;
+                    }
+                }
+                else if (LegalAid.ID == "Y")
+                {
+                    this.Window.MsgWindow.Show(WinUIDTO.ATSMsgType.Alert, LegalAid.Text);
+                    validate = false;
+                    data.ServiceData.OutcomeStatus = "Pending Clinical Review";
+                    return validate;
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("An exception captured " + ex.Message);
+            }
+            return validate;
+        }
+        #endregion
+
+
+        //public ICommand SearchCommand
+        //{
+        //    get
+        //    {
+        //        return new ATSCommand(new Action<object>((args) =>
+        //        {
+        //            if (args != null && args is string)
+        //            {
+        //                string flag = args.ToString();
+
+
+        //            }
+        //        }));
+        //    }
+        //}
+    }
+}
