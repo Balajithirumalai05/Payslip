@@ -1073,7 +1073,7 @@ namespace WINApi.Controllers
 
                 objTaskController.Create(
                     objPremier?.ScreenArgs?.Contract ?? "",
-                    objPremier?.TaskDetails?.Speciality ?? "",
+                    !string.IsNullOrWhiteSpace(objPremier?.TaskDetails?.Speciality) ? objPremier.TaskDetails.Speciality : "Infertility",
                     objPremier?.ScreenArgs?.MemberID ?? "",
                     objPremier?.ScreenArgs?.UserName ?? "",
                     "Certify Outcome",
@@ -1129,7 +1129,7 @@ namespace WINApi.Controllers
                 {
                     objTaskController.Create(
                         objPremier?.ScreenArgs?.Contract ?? "",
-                        objPremier?.TaskDetails?.Speciality ?? "",
+                        !string.IsNullOrWhiteSpace(objPremier?.TaskDetails?.Speciality) ? objPremier.TaskDetails.Speciality : "Infertility",
                         objPremier?.ScreenArgs?.MemberID ?? "",
                         objPremier?.ScreenArgs?.UserName ?? "",
                         objPremier?.NextTask?.Task?.TaskName ?? "",
@@ -1145,7 +1145,7 @@ namespace WINApi.Controllers
 
             if ((objPremier.ScreenArgs.UserRole == "RN") && (objPremier.ServiceData.OutcomeStatus == "Pending Clinical Review"))
             {
-                string sTaskId = objTaskController.Create(objPremier?.ScreenArgs?.Contract ?? "", objPremier?.TaskDetails?.Speciality ?? "", objPremier?.ScreenArgs?.MemberID ?? "",
+                string sTaskId = objTaskController.Create(objPremier?.ScreenArgs?.Contract ?? "", !string.IsNullOrWhiteSpace(objPremier?.TaskDetails?.Speciality) ? objPremier.TaskDetails.Speciality : "Infertility", objPremier?.ScreenArgs?.MemberID ?? "",
                      objPremier?.ScreenArgs?.UserName ?? "", "Certify Outcome (Data)", objPremier?.NextTask?.Task?.SendToQueue?.Text ?? "",
                      objPremier?.ScreenArgs?.AuthNumber ?? "", "", objPremier?.NextTask?.Notes ?? "", objPremier?.NextTask?.Task?.Priority, "");
                 objTaskController.Complete("1", sTaskId, objPremier?.NextTask?.Notes ?? "", objPremier?.ScreenArgs?.UserName ?? "",
@@ -1909,7 +1909,7 @@ namespace WINApi.Controllers
 
                 objTaskController.Create(
                     objPremier?.ScreenArgs?.Contract ?? "",
-                    objPremier?.TaskDetails?.Speciality ?? "",
+                    !string.IsNullOrWhiteSpace(objPremier?.TaskDetails?.Speciality) ? objPremier.TaskDetails.Speciality : "Infertility",
                     objPremier?.ScreenArgs?.MemberID ?? "",
                     objPremier?.ScreenArgs?.UserName ?? "",
                     "Certify Outcome",
@@ -1965,7 +1965,7 @@ namespace WINApi.Controllers
                 {
                     objTaskController.Create(
                         objPremier?.ScreenArgs?.Contract ?? "",
-                        objPremier?.TaskDetails?.Speciality ?? "",
+                        !string.IsNullOrWhiteSpace(objPremier?.TaskDetails?.Speciality) ? objPremier.TaskDetails.Speciality : "Infertility",
                         objPremier?.ScreenArgs?.MemberID ?? "",
                         objPremier?.ScreenArgs?.UserName ?? "",
                         objPremier?.NextTask?.Task?.TaskName ?? "",
