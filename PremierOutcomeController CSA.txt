@@ -126,8 +126,8 @@ namespace WINApi.Controllers
                         if (objTaskScreenArgs.UserRole == "CSA") { objTaskScreenArgs.TaskName = "Enter Outcome"; }
                         if (objTaskScreenArgs.UserRole == "RN") { objTaskScreenArgs.TaskName = "Certify Outcome"; }
                         /* --- Create Task -- */
-                        //objTaskScreenArgs.TaskID = objTaskController.Create(objTaskScreenArgs.Contract ?? "", "Infertility", objTaskScreenArgs.MemberID ?? "", objTaskScreenArgs.UserName ?? "",
-                        //    objTaskScreenArgs.TaskName ?? "", "My Personal Queue", objTaskScreenArgs.AuthNumber ?? "", "C", "", "Medium", "");
+                        objTaskScreenArgs.TaskID = objTaskController.Create(objTaskScreenArgs.Contract ?? "", "Infertility", objTaskScreenArgs.MemberID ?? "", objTaskScreenArgs.UserName ?? "",
+                            objTaskScreenArgs.TaskName ?? "", "My Personal Queue", objTaskScreenArgs.AuthNumber ?? "", "C", "", "Medium", "");
                     }
                     else
                     {
