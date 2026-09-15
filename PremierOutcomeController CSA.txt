@@ -575,6 +575,22 @@ namespace WINApi.Controllers
             objPremier = JsonConvert.DeserializeObject<Premier>(ATSParams ?? "{}");
             //Premier objPremier = ATSParams?.ToJsonObject<Premier>();
             Dictionary<string, object> args = new Dictionary<string, object>();
+
+            bool isCsa = string.Equals(
+                objPremier?.ScreenArgs?.UserRole,
+                "CSA",
+                StringComparison.OrdinalIgnoreCase);
+
+            bool isRn = string.Equals(
+                objPremier?.ScreenArgs?.UserRole,
+                "RN",
+                StringComparison.OrdinalIgnoreCase);
+
+            bool isSnr = string.Equals(
+                objPremier?.ServiceData?.AdjudicatedService,
+                "SNR",
+                StringComparison.OrdinalIgnoreCase);
+
             /* --- Get Latest OutPatientID -- */
             string CancelReason = string.Empty;
             string SelectedCptcode = string.Empty;
@@ -584,7 +600,7 @@ namespace WINApi.Controllers
             if (output != null)
             {
 
-                if (objPremier.ServiceData.AdjudicatedService == "SNR")
+                if (isSnr)
                 {
                     SelectedCptcode = "SNR";
                     CancelReason = "SNR";
@@ -596,7 +612,15 @@ namespace WINApi.Controllers
                 }
             }
             OutcomeController objOutcomeController = new OutcomeController();
-            if ((objPremier.ScreenArgs.UserRole == "RN" && objPremier.ServiceData.OutcomeStatus == "Nurse Certified") || SelectedCptcode == "SNR")
+            /*
+             * CSA + SNR: CSA does not finalize SNR.
+             * GetLatestOutPatientId is only called when RN finalizes with Nurse Certified.
+             */
+            if (isRn && isSnr &&
+                string.Equals(
+                    objPremier?.ServiceData?.OutcomeStatus,
+                    "Nurse Certified",
+                    StringComparison.OrdinalIgnoreCase))
             {
                 LatestOutPatientID = objOutcomeController.GetLatestOutPatientId(objPremier.ScreenArgs.MemberID ?? "", objPremier.ScreenArgs.Contract ?? "",
                 objPremier.TaskDetails.Speciality ?? "", objPremier.ServiceData.InitialCPTCode ?? "", objPremier.ScreenArgs.AuthNumber ?? "",
@@ -817,8 +841,24 @@ namespace WINApi.Controllers
             {
                 AdjudicatedCost = "1";
             }
+
+            string outcomeStatusToSave =
+                objPremier?.ServiceData?.OutcomeStatus ?? "";
+
+            if (isCsa && isSnr)
+            {
+                if (!string.Equals(outcomeStatusToSave, "CSA Data Entered",
+                        StringComparison.OrdinalIgnoreCase)
+                    &&
+                    !string.Equals(outcomeStatusToSave, "CSA Data Reviewed",
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    outcomeStatusToSave = "CSA Data Reviewed";
+                }
+            }
+
             objOutcomeController.SaveStatus(objPremier.ScreenArgs.MemberID ?? "", objPremier.ScreenArgs.AuthNumber ?? "",
-                objPremier.ServiceData.OutcomeStatus ?? "", objPremier.ServiceData.OutcomeStatus ?? "",
+                outcomeStatusToSave, outcomeStatusToSave,
                 objPremier.ServiceData.AdjudicatedService ?? "", AdjudicatedCost ?? "", objPremier.ScreenArgs.UserName ?? "", objPremier.ScreenArgs.Contract ?? "");
 
             ///* --- Move Pended Task -- */
@@ -985,15 +1025,61 @@ namespace WINApi.Controllers
             }
             catch (Exception ex) { }
 
-            if ((objPremier.ScreenArgs.UserRole != "RN") && SelectedCptcode == "SNR")
+            /*
+             * CSA + SNR:
+             * CSA does not finalize SNR.
+             * Complete CSA task and create Certify Outcome for RN.
+             */
+            if (isCsa && isSnr)
             {
                 try
                 {
-                    objTaskController.Complete("1", objPremier.ScreenArgs.TaskID ?? "", objPremier.NextTask.Notes ?? "", objPremier.ScreenArgs.UserName ?? "",
-                        objPremier.ScreenArgs.Contract ?? "");
+                    objTaskController.Complete(
+                        "1",
+                        objPremier?.ScreenArgs?.TaskID ?? "",
+                        objPremier?.NextTask?.Notes ?? "",
+                        objPremier?.ScreenArgs?.UserName ?? "",
+                        objPremier?.ScreenArgs?.Contract ?? "");
+
+                    objTaskController.Create(
+                        objPremier?.ScreenArgs?.Contract ?? "",
+                        objPremier?.TaskDetails?.Speciality ?? "",
+                        objPremier?.ScreenArgs?.MemberID ?? "",
+                        objPremier?.ScreenArgs?.UserName ?? "",
+                        "Certify Outcome",
+                        "Primary UM Queue",
+                        objPremier?.ScreenArgs?.AuthNumber ?? "",
+                        "",
+                        objPremier?.NextTask?.Notes ?? "",
+                        "Medium",
+                        "");
                 }
                 catch { }
             }
+            /*
+             * RN + SNR + Nurse Certified:
+             * RN finalizes SNR and Certify Outcome is completed.
+             */
+            else if (isRn && isSnr &&
+                     string.Equals(
+                         objPremier?.ServiceData?.OutcomeStatus,
+                         "Nurse Certified",
+                         StringComparison.OrdinalIgnoreCase))
+            {
+                try
+                {
+                    objTaskController.Complete(
+                        "1",
+                        objPremier?.ScreenArgs?.TaskID ?? "",
+                        objPremier?.NextTask?.Notes ?? "",
+                        objPremier?.ScreenArgs?.UserName ?? "",
+                        objPremier?.ScreenArgs?.Contract ?? "");
+                }
+                catch { }
+            }
+            /*
+             * Existing behavior for all other outcomes.
+             */
             else if (objPremier.ScreenArgs.TaskName == objPremier.NextTask.Task.TaskName)
             {
                 try
@@ -1062,9 +1148,9 @@ namespace WINApi.Controllers
             //}
             if (string.IsNullOrEmpty(LatestOutPatientID)) { LatestOutPatientID = objPremier.ScreenArgs.OutPatientID ?? "1"; }
             objOutcomeController.UpdateWorkFlowStatus(objPremier.ScreenArgs.AuthNumber ?? "", objPremier.TaskDetails.WorkflowStep ?? "",
-                objPremier.ServiceData.OutcomeStatus, Reasons,
+                outcomeStatusToSave, Reasons,
                 LatestOutPatientID ?? "", objPremier.ScreenArgs.UserName ?? "", objPremier.ScreenArgs.Contract ?? "",
-                objPremier.ScreenArgs.TaskName ?? "", objPremier.ServiceData.OutcomeStatus ?? "",
+                objPremier.ScreenArgs.TaskName ?? "", outcomeStatusToSave ?? "",
                 objPremier.ScreenArgs.UserRole ?? "", objPremier.NextTask.Task.TaskName ?? "", SelectedCptcode);
 
             SaveDocumentController savedoc = new SaveDocumentController();
