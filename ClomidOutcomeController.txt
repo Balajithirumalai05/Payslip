@@ -96,7 +96,6 @@ namespace WINApi.Controllers
             TaskController objTaskController = new TaskController();
             TaskIDTaskName = objTaskController.CheckTask(objTaskScreenArgs?.AuthNumber ?? "", "Outcome", objTaskScreenArgs?.Contract ?? "");
             try
-
             {
                 if (TaskIDTaskName == "")
                 {
@@ -371,8 +370,7 @@ namespace WINApi.Controllers
                             });
                         }
                     }
-                }
-                ;
+                };
             }
             catch (Exception ex)
             {
@@ -484,6 +482,7 @@ namespace WINApi.Controllers
             args.Add("@OutcomeReceivedDate", objClomid?.TaskDetails?.OutcomeStartDate ?? "");
             args.Add("@CycleType", objClomid?.ServiceData?.CPTCode ?? "");
             args.Add("@SNR", (isSnr && isRn) ? 1 : 0);
+            args.Add("@DurationFromDate", objClomid?.TaskDetails?.DateFrom ?? "", DBNull.Value);
             args.Add("@DurationToDate", objClomid?.TaskDetails?.DateTo ?? "", DBNull.Value);
             args.Add("@OutcomeStatus", objClomid?.ServiceData?.OutcomeStatus ?? "", DBNull.Value);
             /* ---  inf Cycle Hx  --- */
