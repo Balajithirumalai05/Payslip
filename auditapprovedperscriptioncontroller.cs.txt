@@ -51,16 +51,19 @@ namespace WINApi.Controllers
 
         #region Methods
 
-        [HttpGet]
+        [HttpPost]
         [ExceptionFilter]
-        public List<string> GetFaxEnabledPharmacies(string contract)
+        public List<string> GetFaxEnabledPharmacies()
         {
             List<string> pharmacies = new List<string>();
             try
             {
-                Dictionary<string, object> args = new Dictionary<string, object>();
-                args.Add("@Contract", contract ?? "");
-                using (DataSet ds = ExecuteDB(SP_GET_FAXENABLED_PHARMACIES, contract ?? "", args))
+                TaskScreenArgs args = ATSParams?.ToJsonObject<TaskScreenArgs>();
+                string contract = args?.Contract ?? "";
+
+                Dictionary<string, object> dbArgs = new Dictionary<string, object>();
+                dbArgs.Add("@Contract", contract);
+                using (DataSet ds = ExecuteDB(SP_GET_FAXENABLED_PHARMACIES, contract, dbArgs))
                 {
                     if (ds != null && ds.Tables.Count > 0 && ds.Tables[0].Rows.Count > 0)
                     {
