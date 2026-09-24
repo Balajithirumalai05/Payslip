@@ -1,0 +1,1475 @@
+using DynamicATS.Common;
+using Newtonsoft.Json;
+using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.Data;
+using System.Linq;
+using WinDTO;
+using WinDTO.Tasks;
+
+namespace DynamicATS.Model
+{
+    public abstract class TaskBaseModel<T>
+    {
+        #region Services Names
+
+        private readonly string SRV_SAVE = "";
+        private readonly string SRV_GET_DATA = "";
+        private readonly string SRV_NEXT_TASK = "Task/GetNextTask";
+        private readonly string SRV_DOC_BYTES = "Outcome/GetDocBytes";
+        private readonly string SRV_TIME_FRAME = "MedicalAuth/GetServiceTimeFrame";
+        private readonly string SRV_MANAGED_PROVIDER_DETAILS = "ManagedRx/GetProviderDetails";
+        private readonly string SRV_MANAGED_PHARMACY_DETAILS = "ManagedRx/GetPharmacyDetails";
+        private readonly string SRV_TASK_FLOW = "Task/TaskFlow";
+        private readonly string SRV_GET_DRUGS = "ManagedRx/GetBaseDrugsandReasons";
+        private const string SRV_GETRXREASONS = "ManagedRx/GetRxReasons";
+        private const string SRV_GETALERTS = "Task/GetAlerts";
+        private const string SRV_GETAUTHREASONS = "MedicalAuth/GetAuthReasons";
+        private const string SRV_GETCryoIndication_Ocp = "MedicalAuth/GetCryoIndication_Ocp";
+        private const string SRV_GetPGTValues = "MedicalAuth/GetPGTValues";
+        private const string SRV_GetICSIValues = "RXAuth/GetICSIValues";
+        private const string SRV_CLOSE_TASK = "Task/CloseTask";
+        private const string SRV_RELOAD_IHM = "NurseSchedule/GetIHM";
+        private const string SRV_NEWINQUIRY_DETAILS = "InquiryEmployer/GetData";
+        private const string SRV_ASSOCIATE_EMPLOYER = "InquiryEmployer/AssociateToEmployer";
+        private const string SRV_GET_CONTRACTCODE = "Task/GetContractCode";
+        private const string SRV_GET_SubCategoryList = "MemberCallSummary/GetSubCategory";
+        private const string SRV_GET_InboundReferralList = "MemberCallSummary/GetInboundReferralList";
+        public const string SRV_CHECK_GENERATELETTER_FAXEMAIL_POPUP = "Task/CheckGenerateLetterFaxEmailPopUp";
+        public const string SRV_CHECK_CIGNAJURACVALIDATION = "MedicalAuth/CignaJuracValidation";
+        private const string SRV_LOAD = "ManagedRx/GetShippingDetailsLoad";
+        private const string SRV_CHECKDUMMY = "ManagedRx/CheckNWMDDUmmy";
+        private const string SRV_ADDDUMMY = "ManagedRx/AddNWMD";
+        private const string SRV_GET_FOLLICADDRESS = "NurseSchedule/GetFollicAcidAddress";
+        private const string SRV_ACCUM_DETAILS = "RxAuth/CalculateEGGFRZAccumulatorPrice";
+        private const string SRV_GA_ACCUM_DETAILS = "RxAuth/CalculateBundlePrice_NewFSHLogic";
+        private const string SRV_PROCEDURECODE_DETAILS = "RxAuth/LoadProcedureWinCode";
+        private const string SRV_AddOn_DETAILS = "RxAuth/GetAddOn";
+        private const string SRV_GetAnthemCptCode = "MedicalAuth/GetAnthemCodes";
+        private const string SRV_CalculateAddOn = "RxAuth/CalculateAddOnPrice";
+        private const string SRV_SentSecureMail = "MemberCallSummary/SentSecureMail";
+        private const string SRV_GET_TASKSTO = "Generic/GetWorkQueues";
+        private const string SRV_CheckAppRegistration = "CheckList/CheckAppRegistration";
+        private const string SRV_GetDrugList = "PremierAuth/GetDrugsList";
+        private const string SRV_ValidateQueueName = "Generic/ValidationQueueName";
+        private const string SRV_ValidateRxonlyLogic = "Generic/ValidateRxonlyLogic";
+        private const string SRV_ValidateRUSHMEMBER = "Generic/ValidateRUSHMEMBERLOGIC";
+        public const string SRV_DO_NOT_SEND_LETTER = "NurseSchedule/GetDoNotSendLetter";
+        private const string SRV_ValidateAgeAlert = "Generic/ValidateAgeAlert";
+        private const string SRV_Getpatienteducationtasktwo = "Task/Getpatienteducationtasktwo";
+        public const string SRV_ValidationSNRNewATS = "Task/ValidationSNRNewATS";
+        public const string SRV_GetWincardValidation = "Task/GetWincardValidation";
+        public const string SRV_GetRXCostshareValidate = "Task/LoadgetRXCostshareValidate";
+        public const string SRV_GetRXcostshare = "Task/LoadRXcostshareDetails";
+        public const string SP_GetMedcostshare = "Task/LoadMedcostshareDetails";
+        public const string SRV_INVOKE_purchaseRequest = "ReviewRX/GetTeamPayResponse";
+        public const string SRV_updatewincardtaskid = "Task/updatewincardtaskid";
+        public const string SRV_GetWincardMailDetails = "Task/GetWincardMailDetails";
+        public const string SRV_INVOKE_GenerateAppRedirectLink = "Common/GenerateDynamicLink";
+        public const string SRV_SaveNotes = "Task/SaveNotes";
+        public const string SRV_SNRTaskNotesRedirect = "Task/SNRTaskNotesRedirect";
+        //public const string SRV_GetNateraOutcome_NCAPopup = "Task/GetNateraOutcome_NCAPopup";
+        private const string SRV_GET_MemberTaskAlerts = "Task/GetMemberTaskAlerts";
+        private const string SRV_GetMenopurAllowedValidation = "Task/GetMenopurAllowedValidation";
+        public const string SRV_ReasonTaskCreated = "Task/SaveReasonTaskCreated";
+        public const string SRV_getrawpath = "FaxEmail/getrawpath";
+
+        #endregion
+
+        public string TaskName { get; set; }
+        public string TaskID { get; set; }
+        public string Contract { get; set; }
+        public string MemberID { get; set; }
+        public class DynamicLinkInfo
+        {
+            #region Properties
+            public string MemberID { get; set; }
+            public string Contract { get; set; }
+            public string PageName { get; set; }
+            #endregion
+        }
+        #region Constructor
+
+        public TaskBaseModel(string saveService, string selectService)
+        {
+            this.SRV_SAVE = saveService;
+            this.SRV_GET_DATA = selectService;
+        }
+        public TaskBaseModel()
+        {
+
+        }
+
+        internal Alerts GetAlerts(string contract, string taskName, string memberID, string alerttype, string Authno = null, string groupid = null)
+        {
+            Alerts AlertsList = new Alerts();
+            try
+            {
+                Alerts args = new Alerts();
+                args.Contract = contract;
+                args.TaskName = taskName;
+                args.MemberID = memberID ?? "";
+                args.AlertType = alerttype;
+                args.Authno = Authno ?? "";
+                args.Groupid = groupid ?? "";
+                AlertsList = AppUtils.InvokeService<Alerts>(SRV_GETALERTS, args);
+            }
+            catch { }
+            return AlertsList;
+        }
+
+
+        //public ObjectBase Getpatienteducationtasktwo(string MemberID, string Contract, string Authno, string TaskName)
+        //{
+        //    ObjectBase Result = new ObjectBase();
+        //    try
+        //    {
+        //        RequestBase args = new RequestBase();
+        //        args.Contract = Contract;
+        //        args.TaskName = TaskName;
+        //        args.MemberID = MemberID ?? "";
+        //        args.AuthNo = Authno ?? "";
+        //        Result = AppUtils.InvokeService<ObjectBase>(SRV_Getpatienteducationtasktwo, args);
+        //    }
+        //    catch { }
+        //    return Result;
+        //}
+
+        #endregion
+
+        #region Methods
+
+        public string Save(T args)
+        {
+            try
+            {
+                string id = string.Empty;
+                if (args != null && args is MedicalAuthDetails)
+                {
+                    MedicalAuthDetails data = args as MedicalAuthDetails;
+                    this.TaskID = data?.ScreenArgs?.TaskID ?? "";
+                    this.TaskName = data?.ScreenArgs?.TaskName ?? "";
+                    this.Contract = data?.ScreenArgs?.Contract ?? "";
+                    this.MemberID = data?.ScreenArgs?.MemberID ?? "";
+                    data.AuthHeaderDetails.LastUser = Utilities.Common.UserName ?? "";
+                    data.ScreenArgs.UserFullName = Utilities.Common.UserFullName ?? "";
+                    data.AuthHeaderDetails.Speciality = "Infertility";
+                    if (data?.AuthHeaderDetails?.Status?.Text == "Complete" && (data?.AuthHeaderDetails?.AuthStatus?.Text == "Approval" || data?.AuthHeaderDetails?.AuthStatus?.Text == "Accepted"))
+                    {
+                        data.AuthHeaderDetails.WStatus = "Complete";
+                    }
+                    else if (data?.AuthHeaderDetails?.Status?.Text == "Complete" && data?.AuthHeaderDetails?.AuthStatus?.Text == "Pending")
+                    {
+                        data.AuthHeaderDetails.WStatus = "Incomplete";
+                    }
+                    else { data.AuthHeaderDetails.WStatus = data.AuthHeaderDetails.Status.Text; }
+                }
+
+                if (args != null && args is StipendClaimDetails)
+                {
+                    StipendClaimDetails data = args as StipendClaimDetails;
+                    this.TaskID = data?.ScreenArgs?.TaskID ?? "";
+                    this.TaskName = data?.ScreenArgs?.TaskName ?? "";
+                    this.Contract = data?.ScreenArgs?.Contract ?? "";
+                    this.MemberID = data?.ScreenArgs?.MemberID ?? "";
+                    data.AuthHeaderDetails.LastUser = Utilities.Common.UserName ?? "";
+                    data.ScreenArgs.UserFullName = Utilities.Common.UserFullName ?? "";
+                    data.AuthHeaderDetails.Speciality = "Infertility";
+                    data.AuthHeaderDetails.Contract = data?.ScreenArgs?.Contract ?? "";
+                    data.AuthHeaderDetails.MemberId = data?.ScreenArgs?.MemberID ?? "";
+                    data.AuthHeaderDetails.OutpatientId = data?.OutpatientId ?? "";
+                    if (data?.ClaimFields?.ClaimStatus?.Text == "Approval")
+                    {
+                        data.AuthHeaderDetails.WStatus = "Complete";
+                    }
+                    else if (data?.ClaimFields?.ClaimStatus?.Text == "Pending")
+                    {
+                        data.AuthHeaderDetails.WStatus = "Incomplete";
+                    }
+                    else { data.AuthHeaderDetails.WStatus = "Complete"; }
+                }
+
+                if (args != null && args is SurrogacyAuthDetails)
+                {
+                    SurrogacyAuthDetails data = args as SurrogacyAuthDetails;
+                    this.TaskID = data?.ScreenArgs?.TaskID ?? "";
+                    this.TaskName = data?.ScreenArgs?.TaskName ?? "";
+                    this.Contract = data?.ScreenArgs?.Contract ?? "";
+                    this.MemberID = data?.ScreenArgs?.MemberID ?? "";
+                    data.AuthHeaderDetails.LastUser = Utilities.Common.UserName ?? "";
+                    data.ScreenArgs.UserFullName = Utilities.Common.UserFullName ?? "";
+                    data.AuthHeaderDetails.Speciality = "Infertility";
+                    data.AuthHeaderDetails.Contract = data?.ScreenArgs?.Contract ?? "";
+                    data.AuthHeaderDetails.MemberId = data?.ScreenArgs?.MemberID ?? "";
+                    data.AuthHeaderDetails.OutpatientId = data?.OutpatientId ?? "";
+                    if (data?.Surrogacydetails?.AuthStatus?.Text == "Approved")
+                    {
+                        data.AuthHeaderDetails.WStatus = "Complete";
+                    }
+                    else if (data?.Surrogacydetails?.AuthStatus?.Text == "Pending")
+                    {
+                        data.AuthHeaderDetails.WStatus = "Incomplete";
+                    }
+                    else { data.AuthHeaderDetails.WStatus = "Complete"; }
+                }
+
+                if (args != null && args is RxAuthDetails)
+                {
+                    RxAuthDetails data = args as RxAuthDetails;
+                    data.AuthHeaderDetails.LastUser = Utilities.Common.UserName ?? "";
+                    this.TaskID = data?.ScreenArgs?.TaskID ?? "";
+                    this.TaskName = data?.ScreenArgs?.TaskName ?? "";
+                    this.Contract = data?.ScreenArgs?.Contract ?? "";
+                    this.MemberID = data?.ScreenArgs?.MemberID ?? "";
+                    data.AuthHeaderDetails.Speciality = "Infertility";
+                    if (data?.AuthHeaderDetails?.Status?.Text == "Complete" && (data?.AuthHeaderDetails?.AuthStatus?.Text == "Approval" || data?.AuthHeaderDetails?.AuthStatus?.Text == "Accepted"))
+                    {
+                        data.AuthHeaderDetails.WStatus = "Complete";
+                    }
+                    else if (data?.AuthHeaderDetails?.Status?.Text == "Complete" && data?.AuthHeaderDetails?.AuthStatus?.Text == "Pending")
+                    {
+                        data.AuthHeaderDetails.WStatus = "Incomplete";
+                    }
+                    else { data.AuthHeaderDetails.WStatus = data.AuthHeaderDetails.Status.Text; }
+                }
+
+                if (args != null && args is MedicalandCycleHistory)
+                {
+                    MedicalandCycleHistory data = args as MedicalandCycleHistory;
+                    data.CycleHistory.UserName = Utilities.Common.UserName ?? "";
+                    this.TaskID = data?.ScreenArgs?.TaskID ?? "";
+                    this.TaskName = data?.ScreenArgs?.TaskName ?? "";
+                    this.Contract = data?.ScreenArgs?.Contract ?? "";
+                    this.MemberID = data?.ScreenArgs?.MemberID ?? "";
+                    data.CycleHistory.Speciality = "Infertility";
+                }
+                if (args != null && args is ContactPatientDetails)
+                {
+                    ContactPatientDetails data = args as ContactPatientDetails;
+                    data.AuthHeaderDetails.UserName = Utilities.Common.UserName;
+
+                    this.TaskID = data?.ScreenArgs?.TaskID ?? "";
+                    this.TaskName = data?.ScreenArgs?.TaskName ?? "";
+                    this.Contract = data?.ScreenArgs?.Contract ?? "";
+                    this.MemberID = data?.ScreenArgs?.MemberID ?? "";
+                }
+                if (args != null && args is Maternity)
+                {
+                    Maternity data = args as Maternity;
+                    data.ScreenArgs.UserName = Utilities.Common.UserName ?? "";
+                    this.TaskID = data?.ScreenArgs?.TaskID ?? "";
+                    this.TaskName = data?.ScreenArgs?.TaskName ?? "";
+                    this.Contract = data?.ScreenArgs?.Contract ?? "";
+                    this.MemberID = data?.ScreenArgs?.MemberID ?? "";
+                }
+                if (args != null && args is AppRefillText)
+                {
+                    AppRefillText data = args as AppRefillText;
+                    data.ScreenArgs.UserName = Utilities.Common.UserName;
+                    this.TaskID = data?.ScreenArgs?.TaskID ?? "";
+                    this.TaskName = data?.ScreenArgs?.TaskName ?? "";
+                    this.Contract = data?.ScreenArgs?.Contract ?? "";
+                    this.MemberID = data?.ScreenArgs?.MemberID ?? "";
+                }
+                if (args != null && args is Complaint)
+                {
+                    Complaint data = args as Complaint;
+                    data.ScreenArgs.UserName = Utilities.Common.UserName;
+
+                    this.TaskID = data?.ScreenArgs?.TaskID ?? "";
+                    this.TaskName = data?.ScreenArgs?.TaskName ?? "";
+                    this.Contract = data?.ScreenArgs?.Contract ?? "";
+                    this.MemberID = data?.ScreenArgs?.MemberID ?? "";
+                }
+                if (args != null && args is InquiryEmployer)
+                {
+                    InquiryEmployer data = args as InquiryEmployer;
+                    data.UserName = Utilities.Common.UserName ?? "";
+                    data.Contract = data?.InquiryEligibilityData?.First().EligibilityContract ?? "";
+                    this.TaskID = data?.ScreenArgs?.TaskID ?? "";
+                    this.TaskName = data?.ScreenArgs?.TaskName ?? "";
+                    this.Contract = data?.ScreenArgs?.Contract ?? "";
+                    this.MemberID = data?.ScreenArgs?.MemberID ?? "";
+                }
+                if (args != null && args is GenerateLetterTaskDetails)
+                {
+                    GenerateLetterTaskDetails data = args as GenerateLetterTaskDetails;
+                    data.AuthHeaderDetails.UserName = Utilities.Common.UserName ?? "";
+                    data.AuthHeaderDetails.AuthNo = data?.ScreenArgs?.AuthNumber ?? "";
+                    this.TaskID = data?.ScreenArgs?.TaskID ?? "";
+                    this.TaskName = data?.ScreenArgs?.TaskName ?? "";
+                    this.Contract = data?.ScreenArgs?.Contract ?? "";
+                    this.MemberID = data?.ScreenArgs?.MemberID ?? "";
+                }
+
+                //if(args !=null && args is ManagedRxDetails)9
+                //{
+
+                //}
+
+                try
+                {
+                    //var json = JsonConvert.SerializeObject(args);web
+                    //if (args is RxAuthDetails)
+                    //{
+                    //    RxAuthDetails obj = JsonConvert.DeserializeObject<RxAuthDetails>(json);  //JsonConvert.DeserializeObject<RxAuthDetails>();
+                    //}
+                    //else if (args is MedicalAuthDetails)
+                    //{
+                    //    MedicalAuthDetails obj = JsonConvert.DeserializeObject<MedicalAuthDetails>(json);
+                    //}
+                    // ObjectBase result = AppUtils.InvokeService<ObjectBase>(SRV_SAVE, args);
+                    var json = JsonConvert.SerializeObject(args);
+                    ObjectBase result = AppUtils.InvokeService<ObjectBase>(SRV_SAVE, args);
+                    if (result != null && string.IsNullOrWhiteSpace(result.ID) == false) { id = result.ID ?? ""; }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine("An error occurred: " + ex.Message);
+                }
+                return id;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("An error occurred: " + ex.Message);
+                return "error";
+            }
+
+        }
+        public List<ObjectBase> GetCategoryList(string sub, string status, string Contract)
+        {
+            TaskScreenArgs args = new TaskScreenArgs()
+            {
+                CategoryName = sub ?? "",
+                SubCategoryStatus = status ?? "",
+                Contract = Contract ?? "",
+            };
+            List<ObjectBase> SubcategoryList = new List<ObjectBase>();
+            try
+            {
+                SubcategoryList = AppUtils.InvokeService<List<ObjectBase>>(SRV_GET_SubCategoryList, args);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("An error occurred: " + ex.Message);
+            }
+            return SubcategoryList;
+        }
+
+        public List<ObjectBase> GetInBoundReferralList(RequestBase args)
+        {
+            List<ObjectBase> InboubdList = new List<ObjectBase>();
+            try
+            {
+                InboubdList = AppUtils.InvokeService<List<ObjectBase>>(SRV_GET_InboundReferralList, args);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("An error occurred: " + ex.Message);
+            }
+            return InboubdList;
+        }
+
+        public ObjectBase SNRTaskNotesRedirect(TaskScreenArgs args)
+        {
+            ObjectBase SNRNote = new ObjectBase();
+            try
+            {
+                SNRNote = AppUtils.InvokeService<ObjectBase>(SRV_SNRTaskNotesRedirect, args);
+            }
+            catch { }
+            return SNRNote;
+        }
+
+        public string CheckDummy(string ID, string AuthNo, string Contract)
+        {
+            RequestBase args = new RequestBase()
+            {
+                MemberID = ID ?? "",
+                AuthNo = AuthNo ?? "",
+                Contract = Contract ?? ""
+            };
+
+            string result = string.Empty;
+            try
+            {
+                result = AppUtils.InvokeService<string>(SRV_CHECKDUMMY, args);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("An error occurred: " + ex.Message);
+            }
+            return result;
+        }
+        public string AddDummy(ManagedRxDetails args)
+        {
+            args.ScreenArgs.Speciality = "Infertility";
+
+            string result = string.Empty;
+            try
+            {
+                result = AppUtils.InvokeService<string>(SRV_ADDDUMMY, args);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("An error occurred: " + ex.Message);
+            }
+            return result;
+
+        }
+
+
+        public void Close(T args)
+        {
+            CloseTask objCloseTask = new CloseTask();
+            try
+            {
+                string id = string.Empty;
+                if (args != null && args is MedicalAuthDetails)
+                {
+                    MedicalAuthDetails data = args as MedicalAuthDetails;
+                    objCloseTask.TaskId = data?.ScreenArgs?.TaskID ?? "0";
+                    objCloseTask.Status = "4";
+                    objCloseTask.Message = data?.NextTask?.Notes ?? "";
+                    objCloseTask.UserName = data?.ScreenArgs?.UserName ?? "";
+                    objCloseTask.Contract = data?.ScreenArgs?.Contract ?? "";
+                    objCloseTask.TaskName = data?.ScreenArgs?.TaskName ?? "";
+                    objCloseTask.AuthStatus = data?.AuthHeaderDetails?.AuthStatus.Text ?? "";
+                    this.MemberID = data.ScreenArgs.MemberID ?? "";
+                }
+                else if (args != null && args is RxAuthDetails)
+                {
+                    RxAuthDetails data = args as RxAuthDetails;
+                    objCloseTask.TaskId = data?.ScreenArgs?.TaskID ?? "0";
+                    objCloseTask.Status = "4";
+                    objCloseTask.Message = data?.NextTask?.Notes ?? "";
+                    objCloseTask.UserName = data?.ScreenArgs?.UserName ?? "";
+                    objCloseTask.Contract = data?.ScreenArgs?.Contract ?? "";
+                    objCloseTask.TaskName = data?.ScreenArgs?.TaskName ?? "";
+                    objCloseTask.AuthStatus = data?.AuthHeaderDetails?.AuthStatus.Text ?? "";
+                    this.MemberID = data.ScreenArgs.MemberID ?? "";
+                }
+                else if (args != null && args is PremierAuthDetails)
+                {
+                    PremierAuthDetails data = args as PremierAuthDetails;
+                    objCloseTask.TaskId = data?.ScreenArgs?.TaskID ?? "0";
+                    objCloseTask.Status = "4";
+                    objCloseTask.Message = data?.NextTask?.Notes ?? "";
+                    objCloseTask.UserName = data?.ScreenArgs?.UserName ?? "";
+                    objCloseTask.Contract = data?.ScreenArgs?.Contract ?? "";
+                    objCloseTask.TaskName = data?.ScreenArgs?.TaskName ?? "";
+                    objCloseTask.AuthStatus = data?.AuthHeaderDetails?.AuthStatus.Text ?? "";
+                    this.MemberID = data.ScreenArgs.MemberID ?? "";
+                }
+                else if (args != null && args is MedicalandCycleHistory)
+                {
+                    MedicalandCycleHistory data = args as MedicalandCycleHistory;
+                    objCloseTask.TaskId = data?.MedicalHistory?.TaskID ?? "0";
+                    objCloseTask.Status = "4";
+                    objCloseTask.Message = "";
+                    objCloseTask.UserName = data?.MedicalHistory?.UserName ?? "";
+                    objCloseTask.Contract = data?.MedicalHistory?.Contract ?? "";
+                    objCloseTask.TaskName = data?.MedicalHistory?.TaskName ?? "";
+                    this.MemberID = data.ScreenArgs.MemberID ?? "";
+                }
+                else if (args != null && args is ManagedRxDetails)
+                {
+                    ManagedRxDetails data = args as ManagedRxDetails;
+                    objCloseTask.TaskId = data?.ScreenArgs?.TaskID ?? "0";
+                    objCloseTask.Status = "4";
+                    objCloseTask.Message = "";
+                    objCloseTask.UserName = data?.ScreenArgs?.UserName ?? "";
+                    objCloseTask.Contract = data?.ScreenArgs?.Contract ?? "";
+                    objCloseTask.TaskName = data?.ScreenArgs?.TaskName ?? "";
+                    objCloseTask.AuthStatus = data?.AuthHeaderDetails?.AuthStatus.Text ?? "";
+                    this.MemberID = data.ScreenArgs.MemberID ?? "";
+                }
+                else if (args != null && args is PremierRxDetails)
+                {
+                    PremierRxDetails data = args as PremierRxDetails;
+                    objCloseTask.TaskId = data?.ScreenArgs?.TaskID ?? "0";
+                    objCloseTask.Status = "4";
+                    objCloseTask.Message = "";
+                    objCloseTask.UserName = data?.ScreenArgs?.UserName ?? "";
+                    objCloseTask.Contract = data?.ScreenArgs?.Contract ?? "";
+                    objCloseTask.TaskName = data?.ScreenArgs?.TaskName ?? "";
+                    objCloseTask.AuthStatus = data?.AuthHeaderDetails?.AuthStatus.Text ?? "";
+                    this.MemberID = data.ScreenArgs.MemberID ?? "";
+                }
+                else if (args != null && args is MemberSummary)
+                {
+                    MemberSummary data = args as MemberSummary;
+                    objCloseTask.TaskId = data?.ScreenArgs?.TaskID ?? "0";
+                    objCloseTask.Status = "4";
+                    objCloseTask.Message = "";
+                    objCloseTask.UserName = data?.ScreenArgs?.UserName ?? "";
+                    objCloseTask.Contract = data?.ScreenArgs?.Contract ?? "";
+                    objCloseTask.TaskName = data?.ScreenArgs?.TaskName ?? "";
+                    this.MemberID = data.ScreenArgs.MemberID ?? "";
+                }
+                else if (args != null && args is LongTermOutcome)
+                {
+                    LongTermOutcome data = args as LongTermOutcome;
+                    objCloseTask.TaskId = data?.ScreenArgs?.TaskID ?? "0";
+                    objCloseTask.Status = "4";
+                    objCloseTask.Message = "";
+                    objCloseTask.UserName = data?.ScreenArgs?.UserName ?? "";
+                    objCloseTask.Contract = data?.ScreenArgs?.Contract ?? "";
+                    objCloseTask.TaskName = data?.ScreenArgs?.TaskName ?? "";
+                    this.MemberID = data.ScreenArgs.MemberID ?? "";
+                }
+                else if (args != null && args is ContactPatientDetails)
+                {
+                    ContactPatientDetails data = args as ContactPatientDetails;
+                    objCloseTask.TaskId = data?.ScreenArgs?.TaskID ?? "0";
+                    objCloseTask.TaskName = data?.ScreenArgs?.TaskName ?? "";
+                    objCloseTask.Contract = data?.ScreenArgs?.Contract ?? "";
+                    this.MemberID = data.ScreenArgs.MemberID ?? "";
+                }
+                else if (args != null && args is GenerateLetterTaskDetails)
+                {
+                    GenerateLetterTaskDetails data = args as GenerateLetterTaskDetails;
+                    objCloseTask.TaskId = data?.ScreenArgs?.TaskID ?? "0";
+                    objCloseTask.TaskName = data?.ScreenArgs?.TaskName ?? "";
+                    objCloseTask.Contract = data?.ScreenArgs?.Contract ?? "";
+                    objCloseTask.ManualNotes = data?.ScreenArgs?.AuthStatus ?? "";
+                    this.MemberID = data.ScreenArgs.MemberID ?? "";
+                }
+                else if (args != null && args is StipendClaimDetails)
+                {
+                    StipendClaimDetails data = args as StipendClaimDetails;
+                    objCloseTask.TaskId = data?.ScreenArgs?.TaskID ?? "0";
+                    objCloseTask.Status = "4";
+                    objCloseTask.Message = data?.NextTask?.Notes ?? "";
+                    objCloseTask.UserName = data?.ScreenArgs?.UserName ?? "";
+                    objCloseTask.Contract = data?.ScreenArgs?.Contract ?? "";
+                    objCloseTask.TaskName = data?.ScreenArgs?.TaskName ?? "";
+                    objCloseTask.ManualNotes = data?.ScreenArgs?.AuthStatus ?? "";
+                    this.MemberID = data.ScreenArgs.MemberID ?? "";
+                }
+                else if (args != null && args is SurrogacyAuthDetails)
+                {
+                    SurrogacyAuthDetails data = args as SurrogacyAuthDetails;
+                    objCloseTask.TaskId = data?.ScreenArgs?.TaskID ?? "0";
+                    objCloseTask.Status = "4";
+                    objCloseTask.Message = data?.NextTask?.Notes ?? "";
+                    objCloseTask.UserName = data?.ScreenArgs?.UserName ?? "";
+                    objCloseTask.Contract = data?.ScreenArgs?.Contract ?? "";
+                    objCloseTask.TaskName = data?.ScreenArgs?.TaskName ?? "";
+                    objCloseTask.ManualNotes = data?.ScreenArgs?.AuthStatus ?? "";
+                    this.MemberID = data.ScreenArgs.MemberID ?? "";
+                }
+
+                else if (args != null && args is LegacyAuthDetails)
+                {
+                    LegacyAuthDetails data = args as LegacyAuthDetails;
+                    objCloseTask.TaskId = data?.ScreenArgs?.TaskID ?? "0";
+                    objCloseTask.Status = "4";
+                    objCloseTask.Message = data?.NextTask?.Notes ?? "";
+                    objCloseTask.UserName = data?.ScreenArgs?.UserName ?? "";
+                    objCloseTask.Contract = data?.ScreenArgs?.Contract ?? "";
+                    objCloseTask.TaskName = data?.ScreenArgs?.TaskName ?? "";
+                    objCloseTask.ManualNotes = data?.ScreenArgs?.AuthStatus ?? "";
+                    this.MemberID = data.ScreenArgs.MemberID ?? "";
+                }
+                if (((objCloseTask?.TaskName ?? "") == "Edit Auth") && objCloseTask.AuthStatus != "Pending")
+                {
+                    string result = AppUtils.InvokeService<string>(SRV_CLOSE_TASK, objCloseTask);
+                }
+                else if (((objCloseTask?.TaskName ?? "") == "Create Auth") ||
+                    ((objCloseTask?.TaskName ?? "") == "Enter/Edit Medical History") || ((objCloseTask?.TaskName ?? "") == "Member Call Summary") ||
+                    ((objCloseTask?.TaskName ?? "") == "Create Rx") || ((objCloseTask?.TaskName ?? "") == "Long Term Outcome") ||
+                    ((objCloseTask?.TaskName ?? "") == "Create Case") || ((objCloseTask?.TaskName ?? "") == "Create Claim") ||
+                    ((objCloseTask?.TaskName ?? "") == "Create SAC Auth") || ((objCloseTask?.TaskName ?? "") == "Create SAC Claim") || ((objCloseTask?.TaskName ?? "") == "Create Legacy Auth"))
+                {
+                    string result = AppUtils.InvokeService<string>(SRV_CLOSE_TASK, objCloseTask);
+                }
+                this.TaskName = objCloseTask?.TaskName ?? "";
+                this.TaskID = objCloseTask?.TaskId ?? "";
+                this.Contract = objCloseTask?.Contract ?? "";
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("An error occurred: " + ex.Message);
+            }
+        }
+
+
+
+        public void Complete(T args)
+        {
+            CloseTask objCloseTask = new CloseTask();
+            try
+            {
+                string id = string.Empty;
+                if (args != null && args is MedicalandCycleHistory)
+                {
+                    MedicalandCycleHistory data = args as MedicalandCycleHistory;
+                    objCloseTask.TaskId = data?.MedicalHistory?.TaskID ?? "0";
+                    objCloseTask.Status = "1";
+                    objCloseTask.Message = "";
+                    objCloseTask.UserName = data?.MedicalHistory?.UserName ?? "";
+                    objCloseTask.Contract = data?.MedicalHistory?.Contract ?? "";
+                    objCloseTask.TaskName = data?.MedicalHistory?.TaskName ?? "";
+                }
+                if ((objCloseTask?.TaskName ?? "") == "Enter/Edit Medical History")
+                {
+                    string result = AppUtils.InvokeService<string>(SRV_CLOSE_TASK, objCloseTask);
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("An error occurred: " + ex.Message);
+            }
+        }
+
+
+        public ServiceTimeFrame GetServiceDuration(string ProcedureCode, string Contract)
+        {
+            ServiceDuration args = new ServiceDuration();
+            args.CPTCode = ProcedureCode ?? "";
+            args.Contract = Contract ?? "";
+
+            ServiceTimeFrame objServiceTimeFrame = new ServiceTimeFrame();
+            try
+            { objServiceTimeFrame = AppUtils.InvokeService<ServiceTimeFrame>(SRV_TIME_FRAME, args); }
+            catch (Exception ex)
+            {
+                Console.WriteLine("An error occurred: " + ex.Message);
+            }
+            return objServiceTimeFrame;
+        }
+
+        public ProviderDetails GetProviderDetails(string ProviderId, string AddressId, string Contract)
+        {
+            RequestBase args = new RequestBase();
+            args.ProviderID = ProviderId ?? "";
+            args.Contract = Contract ?? "";
+            args.AddressID = AddressId ?? "";
+            ProviderDetails objProviderDetails = new ProviderDetails();
+
+            try
+            { objProviderDetails = AppUtils.InvokeService<ProviderDetails>(SRV_MANAGED_PROVIDER_DETAILS, args); }
+            catch (Exception ex)
+            {
+                Console.WriteLine("An error occurred: " + ex.Message);
+            }
+            return objProviderDetails;
+        }
+        public EggFrzAccumulatorPrice GetAccumDetails(CalculateAccumPrice args)
+        {
+            EggFrzAccumulatorPrice objAccumDetails = new EggFrzAccumulatorPrice();
+            try
+            { objAccumDetails = AppUtils.InvokeService<EggFrzAccumulatorPrice>(SRV_ACCUM_DETAILS, args); }
+            catch (Exception ex)
+            {
+                Console.WriteLine("An error occurred: " + ex.Message);
+            }
+            return objAccumDetails;
+        }
+        public EggFrzAccumulatorPrice GetGAAccumDetails(CalculateAccumPrice args)
+        {
+            EggFrzAccumulatorPrice objAccumDetails = new EggFrzAccumulatorPrice();
+            try
+            { objAccumDetails = AppUtils.InvokeService<EggFrzAccumulatorPrice>(SRV_GA_ACCUM_DETAILS, args); }
+            catch (Exception ex)
+            {
+                Console.WriteLine("An error occurred: " + ex.Message);
+            }
+            return objAccumDetails;
+        }
+        public List<ObjectBase> LoadProcedureCode(RequestBase args)
+        {
+            List<ObjectBase> objCodeList = new List<ObjectBase>();
+            try
+            { objCodeList = AppUtils.InvokeService<List<ObjectBase>>(SRV_PROCEDURECODE_DETAILS, args); }
+            catch (Exception ex)
+            {
+                Console.WriteLine("An error occurred: " + ex.Message);
+            }
+            return objCodeList;
+        }
+        public List<ObjectBase> LoadAddOn(CalculateAccumPrice args)
+        {
+            List<ObjectBase> objAddOnList = new List<ObjectBase>();
+            try
+            { objAddOnList = AppUtils.InvokeService<List<ObjectBase>>(SRV_AddOn_DETAILS, args); }
+            catch (Exception ex)
+            {
+                Console.WriteLine("An error occurred: " + ex.Message);
+            }
+            return objAddOnList;
+        }
+
+        public List<string> CalculateAddOn(CalculateAccumPrice args)
+        {
+            List<string> addonwincode = new List<string>();
+            try
+            { addonwincode = AppUtils.InvokeService<List<string>>(SRV_CalculateAddOn, args); }
+            catch (Exception ex)
+            {
+                Console.WriteLine("An error occurred: " + ex.Message);
+            }
+            return addonwincode;
+        }
+
+        public AddPharmacy GetPharmacyDetails(string PharmacyCode, string Contract)
+        {
+            RequestBase args = new RequestBase();
+            args.PharmCode = PharmacyCode ?? "";
+            args.Contract = Contract ?? "";
+            AddPharmacy objAddPharmacy = new AddPharmacy();
+            try
+            { objAddPharmacy = AppUtils.InvokeService<AddPharmacy>(SRV_MANAGED_PHARMACY_DETAILS, args); }
+            catch (Exception ex)
+            {
+                Console.WriteLine("An error occurred: " + ex.Message);
+            }
+            return objAddPharmacy;
+        }
+        public List<ShippingDetails> GetShipping(TaskScreenArgs args)
+        {
+            List<ShippingDetails> shipping = new List<ShippingDetails>();
+            args.Speciality = "Infertility";
+            try
+            {
+                shipping = AppUtils.InvokeService<List<ShippingDetails>>(SRV_LOAD, args);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("An error occurred: " + ex.Message);
+            }
+            return shipping;
+        }
+        //public RequestBase GetNateraOutcome_NCAPopup(string memberid, string contract, string TaskName,string AuthNo, string User)
+        //{
+        //    try
+        //    {
+        //        RequestBase Result = new RequestBase();
+        //        try
+        //        {
+        //            RequestBase input = new RequestBase()
+        //            {
+
+        //                MemberID = memberid ?? "",
+        //                Contract = contract ?? "",
+        //                TaskName = TaskName ?? "",
+        //                GroupName = AuthNo ?? "",
+        //                UserName = User ?? ""
+        //            };
+        //            Result = AppUtils.InvokeService<RequestBase>(SRV_GetNateraOutcome_NCAPopup, input);
+        //        }
+        //        catch { }
+        //        return Result;
+        //    }
+        //    catch { return null; }
+        //}
+        public string JuracCignaValidation(RequestBase args)
+        {
+            string Result = string.Empty;
+            try
+            {
+                Result = AppUtils.InvokeService<string>(SRV_CHECK_CIGNAJURACVALIDATION, args);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("An error occurred: " + ex.Message);
+            }
+            return Result;
+        }
+        public ObjectBase CheckGenerateLetterFaxEmailPopup(TaskScreenArgs args)
+        {
+            ObjectBase Result = new ObjectBase();
+            try
+            {
+                Result = AppUtils.InvokeService<ObjectBase>(SRV_CHECK_GENERATELETTER_FAXEMAIL_POPUP, args);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("An error occurred: " + ex.Message);
+            }
+            return Result;
+        }
+
+        public InquiryEmployer GetNewInquiryDetails(TaskScreenArgs obj)
+        {
+            InquiryEmployer objInquiryEmployer = new InquiryEmployer();
+            try
+            {
+                objInquiryEmployer = AppUtils.InvokeService<InquiryEmployer>(SRV_NEWINQUIRY_DETAILS, obj);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("An error occurred: " + ex.Message);
+            }
+            return objInquiryEmployer;
+        }
+
+        public AddMember AssociateToEmployer(InquiryAssociate objInquiryAssociate)
+        {
+            AddMember obj = new AddMember();
+            try
+            {
+                obj = AppUtils.InvokeService<AddMember>(SRV_ASSOCIATE_EMPLOYER, objInquiryAssociate);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("An error occurred: " + ex.Message);
+            }
+            return obj;
+        }
+        public IHMDetails GetIHMDetails(string Memberid, string Contract)
+        {
+            RequestBase args = new RequestBase();
+            args.MemberID = Memberid ?? "";
+            args.Contract = Contract ?? "";
+            IHMDetails objIHMDetails = new IHMDetails();
+            try
+            { objIHMDetails = AppUtils.InvokeService<IHMDetails>(SRV_RELOAD_IHM, args); }
+            catch (Exception ex)
+            {
+                Console.WriteLine("An error occurred: " + ex.Message);
+            }
+            return objIHMDetails;
+        }
+        public string GetDoNotSendLetter(string Contract, string MemberID)
+        {
+            string result = string.Empty;
+            try
+            {
+                RequestBase input = new RequestBase()
+                {
+                    Contract = Contract ?? "",
+                    MemberID = MemberID ?? ""
+                };
+                result = AppUtils.InvokeService<string>(SRV_DO_NOT_SEND_LETTER, input);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("An error occurred: " + ex.Message);
+            }
+            return result;
+        }
+        public StateZipCode GetFollicAddress(string Memberid, string Contract)
+        {
+            RequestBase args = new RequestBase();
+            args.MemberID = Memberid ?? "";
+            args.Contract = Contract ?? "";
+
+            StateZipCode objFollicAddres = new StateZipCode();
+
+            try
+            { objFollicAddres = AppUtils.InvokeService<StateZipCode>(SRV_GET_FOLLICADDRESS, args); }
+            catch (Exception ex)
+            {
+                Console.WriteLine("An error occurred: " + ex.Message);
+            }
+            return objFollicAddres;
+        }
+        public TaskFlow TaskFlow(string Contract, string UserRole, string TaskName, string TaskStatus)
+        {
+            EnableControlsInput args = new EnableControlsInput();
+            args.Contract = Contract ?? "";
+            args.RNFlag = UserRole ?? "";
+            args.TaskName = TaskName ?? "";
+            args.TaskStatus = TaskStatus ?? "";
+            TaskFlow objTaskFlow = new TaskFlow();
+            try
+            { objTaskFlow = AppUtils.InvokeService<TaskFlow>(SRV_TASK_FLOW, args); }
+            catch (Exception ex)
+            {
+                Console.WriteLine("An error occurred: " + ex.Message);
+            }
+            return objTaskFlow;
+        }
+        public ObservableCollection<AnthemCptCodeList> GetAnthemCptCode(TaskScreenArgs args)
+        {
+            ObservableCollection<AnthemCptCodeList> ResultList = new ObservableCollection<AnthemCptCodeList>();
+            args.Speciality = "Infertility";
+            try
+            {
+                ResultList = AppUtils.InvokeService<ObservableCollection<AnthemCptCodeList>>(SRV_GetAnthemCptCode, args);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("An error occurred: " + ex.Message);
+            }
+            return ResultList;
+        }
+
+
+        public T GetData(TaskScreenArgs args)
+        {
+            //if (Utilities.Common.IsNurse)
+            //{
+            //    args.RNFlag = "Yes";
+            //}
+            //else
+            //{
+            //    args.RNFlag = "No";
+            //}            
+            ////args.Contract = "MSK";
+            ////args.FormattedAuthNumber = "WAMSK18050-0030";
+            ////args.TaskID = "1408008";
+            ////args.AuthNumber = "180500030";
+            //if (string.IsNullOrEmpty(args.OutPatientID)) { args.NewAuth = true; }
+            //else { args.NewAuth = false; }
+
+            //  args.Contract = "PWC";
+            //   args.TaskID = "104110";
+
+
+            T data = default(T);
+            try
+            {
+                var json = JsonConvert.SerializeObject(args);
+                data = AppUtils.InvokeService<T>(SRV_GET_DATA, args);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("An error occurred: " + ex.Message);
+            }
+            return data;
+        }
+        public TaskInfo GetNextTask(NextTaskParams args)
+        {
+            TaskInfo data = null;
+            try
+            { data = AppUtils.InvokeService<TaskInfo>(SRV_NEXT_TASK, args); }
+            catch (Exception ex)
+            {
+                Console.WriteLine("An error occurred: " + ex.Message);
+            }
+            if (data == null) { data = new TaskInfo(); }
+            return data;
+        }
+
+        public List<ObjectBase> GetAuthReasons(RequestBase args)
+        {
+            List<ObjectBase> data = null;
+            try
+            { data = AppUtils.InvokeService<List<ObjectBase>>(SRV_GETAUTHREASONS, args); }
+            catch (Exception ex)
+            {
+                Console.WriteLine("An error occurred: " + ex.Message);
+            }
+            if (data == null) { data = new List<ObjectBase>(); }
+            return data;
+        }
+
+        public List<string> GETCryoIndication_Ocp(string contract, string CPTCODE, string memberid)
+        {
+            TaskScreenArgs args = new TaskScreenArgs();
+            args.Contract = contract ?? "";
+            args.AuthCPTCode = CPTCODE ?? "";
+            args.MemberID = memberid ?? "";
+            List<string> RxReasonsList = new List<string>();
+            try
+            {
+                RxReasonsList = AppUtils.InvokeService<List<string>>(SRV_GETCryoIndication_Ocp, args);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("An error occurred: " + ex.Message);
+            }
+            return RxReasonsList;
+        }
+
+        public List<string> GetPGTValues(string Contract, string CPTCode, string memberid)
+        {
+            TaskScreenArgs args = new TaskScreenArgs();
+            args.Contract = Contract ?? "";
+            args.AuthCPTCode = CPTCode ?? "";
+            args.MemberID = memberid ?? "";
+            List<string> PGTLIST = new List<string>();
+            try
+            {
+                PGTLIST = AppUtils.InvokeService<List<string>>(SRV_GetPGTValues, args);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("An error occurred: " + ex.Message);
+            }
+            return PGTLIST;
+        }
+        public List<string> GetICSIValues(string Contract, string CPTCode, string memberid)
+        {
+            TaskScreenArgs args = new TaskScreenArgs();
+            args.Contract = Contract ?? "";
+            args.AuthCPTCode = CPTCode ?? "";
+            args.MemberID = memberid ?? "";
+            List<string> ICSILIST = new List<string>();
+            try
+            {
+                ICSILIST = AppUtils.InvokeService<List<string>>(SRV_GetICSIValues, args);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("An error occurred: " + ex.Message);
+            }
+            return ICSILIST;
+        }
+        //public List<ShippingDetails> GetShippinListInfo(TaskScreenArgs args)
+        //{
+        //    List<ShippingDetails> data = null;
+        //    try
+        //    { data = AppUtils.InvokeService<List<ShippingDetails>>(SRV_GETAUTHREASONS, args); }
+        //    catch { }
+        //    return data;
+        //}
+
+        public byte[] GetDocBytes(DocBytesParams args)
+        {
+            byte[] bytes = null;
+            try
+            {
+                string data = AppUtils.InvokeService<string>(SRV_DOC_BYTES, args);
+                if (string.IsNullOrWhiteSpace(data) == false)
+                { bytes = Convert.FromBase64String(data); }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("An error occurred: " + ex.Message);
+            }
+            return bytes;
+        }
+
+        public RxAuthDrugndReason GetBaseDrugsandReasonsbcbsil(string contract, string userName, string PharmacyID, string id)
+        {
+            RxAuthDrugndReason data = null;
+
+            TaskScreenArgs args = new TaskScreenArgs();
+            args.UserName = userName ?? "";
+            args.Contract = contract ?? "";
+            args.PharmacyID = PharmacyID;
+            args.ISSELECTEDPremierRxNonformulary = id ?? "";
+
+            try
+            {
+                var json = JsonConvert.SerializeObject(args);
+                data = AppUtils.InvokeService<RxAuthDrugndReason>(SRV_GET_DRUGS, args);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("An error occurred: " + ex.Message);
+            }
+            if (data == null) { data = new RxAuthDrugndReason(); }
+            return data;
+        }
+
+        public RxAuthDrugndReason GetBaseDrugsandReasons(string contract, string userName)
+        {
+            RxAuthDrugndReason data = null;
+            TaskScreenArgs args = new TaskScreenArgs();
+            args.UserName = userName ?? "";
+            args.Contract = contract ?? "";
+
+            try
+            {
+                var json = JsonConvert.SerializeObject(args);
+                data = AppUtils.InvokeService<RxAuthDrugndReason>(SRV_GET_DRUGS, args);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("An error occurred: " + ex.Message);
+            }
+            if (data == null) { data = new RxAuthDrugndReason(); }
+            return data;
+        }
+        public List<ObjectBase> GetRxReasons(string selectedtaskstatus, string contract)
+        {
+            TaskScreenArgs args = new TaskScreenArgs();
+            args.TaskStatus = selectedtaskstatus ?? "";
+            args.Contract = contract ?? "";
+            List<ObjectBase> RxReasonsList = new List<ObjectBase>();
+            try
+            {
+                RxReasonsList = AppUtils.InvokeService<List<ObjectBase>>(SRV_GETRXREASONS, args);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("An error occurred: " + ex.Message);
+            }
+            return RxReasonsList;
+        }
+
+        public string GetContractCode(RequestBase args)
+        {
+            string Result = string.Empty;
+            try
+            {
+                Result = AppUtils.InvokeService<string>(SRV_GET_CONTRACTCODE, args);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("An error occurred: " + ex.Message);
+            }
+            return Result;
+        }
+
+        public bool SentSecureMail(MemberSummary args)
+        {
+            bool result = false;
+            try
+            {
+                result = AppUtils.InvokeService<bool>(SRV_SentSecureMail, args);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("An error occurred: " + ex.Message);
+            }
+            return result;
+        }
+        public List<ObjectBase> GetTaskTo(string CPTCode = null)
+        {
+            List<ObjectBase> queues = new List<ObjectBase>();
+            try
+            {
+                queues = AppUtils.InvokeService<List<ObjectBase>>(SRV_GET_TASKSTO, new
+                {
+                    Contract = Contract ?? "",
+                    CPTCode = CPTCode ?? ""
+                });
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("An error occurred: " + ex.Message);
+            }
+            return queues;
+
+        }
+        public RxAuthDrugndReason GetDrugList(string PharmID, string id, string Contract)
+        {
+            RxAuthDrugndReason drugs = new RxAuthDrugndReason();
+            try
+            {
+                RequestBase args = new RequestBase()
+                {
+                    Contract = Contract ?? "",
+                    UserName = Utilities.Common.UserName ?? "",
+                    Type = PharmID ?? "",
+                    ISSELECTEDPremierRxNonformulary = id ?? ""
+                };
+                drugs = AppUtils.InvokeService<RxAuthDrugndReason>(SRV_GetDrugList, args);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("An error occurred: " + ex.Message);
+            }
+            return drugs;
+        }
+        public ObjectBase IsValidQueue(TaskScreenArgs input)
+        {
+            ObjectBase validQueue = new ObjectBase();
+            try
+            {
+                validQueue = AppUtils.InvokeService<ObjectBase>(SRV_ValidateQueueName, input);
+
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("An error occurred: " + ex.Message);
+            }
+            return validQueue;
+
+        }
+
+        public dynamic CheckAppRegistration(RequestBase args)
+        {
+            dynamic Result = null;
+            try
+            {
+                Result = AppUtils.InvokeService<dynamic>(SRV_CheckAppRegistration, args);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("An error occurred: " + ex.Message);
+            }
+            return Result;
+        }
+
+        public string ValidateRxOnlyLogic(RequestBase args)
+        {
+            string Result = null;
+            try
+            {
+                Result = AppUtils.InvokeService<string>(SRV_ValidateRxonlyLogic, args);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("An error occurred: " + ex.Message);
+            }
+            return Result;
+        }
+        public string ValidateRUSHMember(RequestBase args)
+        {
+            string Result = null;
+            try
+            {
+                Result = AppUtils.InvokeService<string>(SRV_ValidateRUSHMEMBER, args);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("An error occurred: " + ex.Message);
+            }
+            return Result;
+        }
+        public string ValidateAgeAlert(RequestBase args)
+        {
+            string Result = null;
+            try
+            {
+                Result = AppUtils.InvokeService<string>(SRV_ValidateAgeAlert, args);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("An error occurred: " + ex.Message);
+            }
+            return Result;
+        }
+
+        public ObjectBase ValidationSNRNewATS(TaskScreenArgs args)
+        {
+            ObjectBase Result = new ObjectBase();
+            try
+            {
+                Result = AppUtils.InvokeService<ObjectBase>(SRV_ValidationSNRNewATS, args);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("An error occurred: " + ex.Message);
+            }
+            return Result;
+        }
+
+        public ObjectBase GetWincardValidation(string MemberId, string contract, string drugname = null, string pharmacy = null, string TaskId = null, string Task = null)
+        {
+            ObjectBase Result = null;
+
+            try
+            {
+                RequestBase args = new RequestBase();
+                args.Contract = Contract ?? "";
+                args.Text = drugname ?? "";
+                args.ID = pharmacy ?? "";
+                args.TaskID = TaskId ?? "";
+                args.TaskName = Task ?? "";
+                args.MemberID = MemberId ?? "";
+                Result = AppUtils.InvokeService<ObjectBase>(SRV_GetWincardValidation, args);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("An error occurred: " + ex.Message);
+            }
+            return Result;
+        }
+        public string LoadgetRXCostshareValidate(string contract, string MemberID = null)
+        {
+            string Result = null;
+
+            try
+            {
+                RequestBase args = new RequestBase();
+                args.Contract = Contract ?? "";
+                args.MemberID = MemberID ?? "";
+                Result = AppUtils.InvokeService<string>(SRV_GetRXCostshareValidate, args);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("An error occurred: " + ex.Message);
+            }
+            return Result;
+        }
+
+        public decimal GetRXcostshare(string contract, decimal cost, string MemberID = null, string AuthNumber = null, string TaskID = null)
+        {
+            decimal Result = 0;
+
+            try
+            {
+                RequestBase args = new RequestBase();
+                args.Contract = Contract ?? "";
+                args.MemberID = MemberID ?? "";
+                args.UserName = Utilities.Common.UserName;
+                args.ServiceCost = cost.ToString();
+                args.MemberID = MemberID ?? "";
+                args.MemberID = MemberID ?? "";
+                Result = AppUtils.InvokeService<decimal>(SRV_GetRXcostshare, args);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("An error occurred: " + ex.Message);
+            }
+            return Result;
+        }
+        public decimal GetMedcostshare(string contract, string cost, string MemberID = null, string AuthNumber = null, string TaskID = null)
+        {
+            decimal Result = 0;
+
+            try
+            {
+                RequestBase args = new RequestBase();
+                args.Contract = Contract ?? "";
+                args.MemberID = MemberID ?? "";
+                args.UserName = Utilities.Common.UserName;
+                args.ServiceCost = cost.ToString();
+                args.MemberID = MemberID ?? "";
+                args.TaskID = TaskID ?? "";
+                Result = AppUtils.InvokeService<decimal>(SP_GetMedcostshare, args);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("An error occurred: " + ex.Message);
+            }
+            return Result;
+        }
+        public WinCPSDTO.TeamPayPurchaseResponse purchaseRequest(WinCPSDTO.TeamPayPurchaseRequest obj)
+        {
+            WinCPSDTO.TeamPayPurchaseResponse TeamPayPurchaseResponse = new WinCPSDTO.TeamPayPurchaseResponse();
+            try
+            {
+                TeamPayPurchaseResponse = Utilities.MobileAPIInvoker.Invoke<WinCPSDTO.TeamPayPurchaseResponse>(SRV_INVOKE_purchaseRequest, obj);
+
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("An error occurred: " + ex.Message);
+            }
+            return TeamPayPurchaseResponse;
+        }
+        public void updatewincardtaskid(string taskid, string Contract, string AuthNumber)
+        {
+            try
+            {
+                RequestBase args = new RequestBase();
+                args.TaskID = taskid ?? "";
+                args.Contract = Contract ?? "";
+                args.AuthNumber = AuthNumber ?? "";
+                args.UserName = Utilities.Common.UserName;
+                AppUtils.InvokeService<string>(SRV_updatewincardtaskid, args);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("An error occurred: " + ex.Message);
+            }
+        }
+        public void ReasonTaskCreated(string taskid, string Contract, string Memberid, string TaskReason)
+        {
+            try
+            {
+                RequestBase args = new RequestBase();
+                args.TaskID = taskid ?? "";
+                args.Contract = Contract ?? "";
+                args.Memberid = Memberid ?? "";
+                args.TaskReasonText = TaskReason ?? "";
+                args.UserName = Utilities.Common.UserName;
+                AppUtils.InvokeService<string>(SRV_ReasonTaskCreated, args);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("An error occurred: " + ex.Message);
+            }
+        }
+
+        public string GenerateAppRedirectLink(string MemberID, string Contract)
+        {
+            string Result = "";
+            try
+            {
+                DynamicLinkInfo args = new DynamicLinkInfo();
+                args.Contract = Contract ?? "";
+                args.MemberID = MemberID ?? "";
+                args.PageName = "Home";
+                Result = Utilities.MobileAPIInvoker.Invoke<string>(SRV_INVOKE_GenerateAppRedirectLink, args);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("An error occurred: " + ex.Message);
+            }
+            return Result;
+        }
+
+        public Mail GetWincardMailDetails(string MemberID, string Contract, string RedirectLink)
+        {
+            Mail Result = new Mail();
+            try
+            {
+                RequestBase args = new RequestBase();
+                args.Contract = Contract ?? "";
+                args.MemberID = MemberID ?? "";
+                args.WebLink = RedirectLink ?? "";
+                Result = AppUtils.InvokeService<Mail>(SRV_GetWincardMailDetails, args);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("An error occurred: " + ex.Message);
+            }
+            return Result;
+        }
+
+        public void SaveNotes(string Body, string MemberID, string Contract, string AuthNumber)
+        {
+            try
+            {
+                NurseScheduleDayInfo args = new NurseScheduleDayInfo();
+                args.Email = Body ?? "";
+                args.Contract = Contract ?? "";
+                args.MemberID = MemberID ?? "";
+                args.AuthNo = AuthNumber ?? "";
+                args.UserName = Utilities.Common.UserName;
+                AppUtils.InvokeService<string>(SRV_SaveNotes, args);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("An error occurred: " + ex.Message);
+            }
+        }
+        public ObjectBase getrawpath(TaskScreenArgs inputs)
+        {
+            ObjectBase result = new ObjectBase();
+            try
+            {
+                result = AppUtils.InvokeService<ObjectBase>(SRV_getrawpath, inputs);
+            }
+            catch { }
+            return result;
+        }
+        public List<string> GetMemberTaskAlerts(string TaskId)
+        {
+            List<string> ContractFlow = null;
+            RequestBase args = new RequestBase()
+            {
+                TaskID = TaskId ?? ""
+            };
+            try
+            {
+                ContractFlow = AppUtils.InvokeService<List<string>>(SRV_GET_MemberTaskAlerts, args);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("An error occurred: " + ex.Message);
+            }
+            return ContractFlow;
+        }
+        public string GetMenopurAllowedValidation(string MemberId, string contract)
+        {
+            string Result = "";
+
+            try
+            {
+                RequestBase args = new RequestBase();
+                args.Contract = Contract ?? "";
+                args.MemberID = MemberId ?? "";
+                Result = AppUtils.InvokeService<string>(SRV_GetMenopurAllowedValidation, args);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("An error occurred: " + ex.Message);
+            }
+            return Result;
+        }
+        #endregion
+    }
+
+}
