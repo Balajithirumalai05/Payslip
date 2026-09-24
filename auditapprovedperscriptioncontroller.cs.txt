@@ -45,10 +45,35 @@ namespace WINApi.Controllers
         // SENDING FAX , if required  
 
         private const string SP_UPDATE_AUDITAPPROVEDPRESCRIPTION = "USP_UPDATEAUDITAPROVEDPRESCTASK_ATS";
+        private const string SP_GET_FAXENABLED_PHARMACIES = "USP_GET_FAXENABLED_PHARMACIES_ATS";
 
         #endregion
 
         #region Methods
+
+        [HttpGet]
+        [ExceptionFilter]
+        public List<string> GetFaxEnabledPharmacies(string contract)
+        {
+            List<string> pharmacies = new List<string>();
+            try
+            {
+                Dictionary<string, object> args = new Dictionary<string, object>();
+                args.Add("@Contract", contract ?? "");
+                using (DataSet ds = ExecuteDB(SP_GET_FAXENABLED_PHARMACIES, contract ?? "", args))
+                {
+                    if (ds != null && ds.Tables.Count > 0 && ds.Tables[0].Rows.Count > 0)
+                    {
+                        foreach (DataRow row in ds.Tables[0].Rows)
+                        {
+                            pharmacies.Add(row.Value<string>("PharmacyName") ?? "");
+                        }
+                    }
+                }
+            }
+            catch { }
+            return pharmacies;
+        }
 
         [HttpPost]
         [ExceptionFilter, ValidateFilter]
