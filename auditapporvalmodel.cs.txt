@@ -8,5 +8,17 @@ namespace DynamicATS.Model
         base("AuditApprovedPrescription/Save", "AuditApprovedPrescription/GetData")
         { }
 
+        public System.Collections.Generic.List<string> GetFaxEnabledPharmacies(string contract)
+        {
+            System.Collections.Generic.List<string> result = new System.Collections.Generic.List<string>();
+            try
+            {
+                TaskScreenArgs args = new TaskScreenArgs();
+                args.Contract = contract;
+                result = DynamicATS.Common.AppUtils.InvokeService<System.Collections.Generic.List<string>>("AuditApprovedPrescription/GetFaxEnabledPharmacies", args);
+            }
+            catch { }
+            return result ?? new System.Collections.Generic.List<string>();
+        }
     }
 }
