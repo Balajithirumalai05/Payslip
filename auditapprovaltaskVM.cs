@@ -47,29 +47,19 @@ namespace DynamicATS.ViewModel
         private string TempCoverFaxesPath2 = Convert.ToString(ConfigurationManager.AppSettings["FAX_NUMBER_HMOI"]);
         string NEWWin_Logo = ConfigurationManager.AppSettings["NEWWin_Logo"].ToString();
 
-        private static readonly List<string> FaxEnabledPharmacies = new List<string>
+        private List<string> _faxEnabledPharmacies;
+        public List<string> FaxEnabledPharmacies
         {
-            "AlexanderTwin Pharmacy",
-            "Alto Pharmacy",
-            "Amber Specialty Pharmacy",
-            "Apri Fertility Pharmacy",
-            "Apthorp Pharmacy",
-            "CVS Specialty Pharmacy",
-            "Dobbs Ferry Pharmacy",
-            "Fertility Pharmacy of America",
-            "Freedom Fertility by Evernorth",
-            "Genoa Healthcare / Genoa Fertility Pharmacy",
-            "Hann's Fertility Pharmacy",
-            "HealthDyne Specialty Pharmacy",
-            "Integrity Rx Specialty Pharmacy",
-            "Mandell's Clinical Pharmacy",
-            "MDR Specialty Pharmacy / MDRX",
-            "Omaha Pharmacy Express",
-            "Prima Pharmacy",
-            "SandsRx",
-            "SMP Pharmacy Solutions",
-            "Village Fertility Pharmacy"
-        };
+            get
+            {
+                if (_faxEnabledPharmacies == null)
+                {
+                    string contract = Data?.ScreenArgs?.Contract ?? Data?.AuthHeaderDetails?.Contract ?? "";
+                    _faxEnabledPharmacies = this._model.GetFaxEnabledPharmacies(contract) ?? new List<string>();
+                }
+                return _faxEnabledPharmacies;
+            }
+        }
         //private List<string> PREMIER = new List<string>() { "EPIC Brokers", "Disney-HMSA Kaiser", "Davis Wright Tremaine LLP", "JP Morgan-No DOI-Premier", "DE Shaw-US",
         //    "DE Shaw-Fully Insured", "General Atlantic","Legal Aid Society", "Freshfields", "First American-HMSA", "Bill and Melinda Gates Companies", "PGA TOUR",
         //    "Disney-21 Century Fox-Kaiser","Disney-Hulu-Kaiser","JPMS-John Paul Mitchell Systems", "MCI-Premier", "Loeb & Loeb-Cigna-No Medical Election-Premier",
@@ -91,7 +81,8 @@ namespace DynamicATS.ViewModel
 
         public AuditApprovalTaskVM()
         {
-            this.Model = new AuditApprovalTaskModel();
+            this._model = new AuditApprovalTaskModel();
+            this.Model = this._model;
             this._model1 = new FaxEmailModel();
             this.IsButtonEnabled = true;
 
