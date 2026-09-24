@@ -1,0 +1,923 @@
+using System;
+using System.Collections.Generic;
+using System.Data;
+using System.Linq;
+using System.Net;
+using System.Net.Http;
+using System.Web.Http;
+using System.Web.Http.Filters;
+using WINApiBase;
+using WINApiBase.Filters;
+using WinDTO.Tasks;
+using WinDTO;
+using System.Xml.Linq;
+
+namespace WINApi.Controllers
+{
+    public class AuditApprovedPrescriptionController : ATSBaseController
+    {
+        #region Stored Procedure
+
+        private List<string> MANAGED = new List<string>() { "HMO ILLINOIS", "HUMANA", "CIGNA" };
+
+        private const string SP_GETDATA = "usp_verifyAPPtaskload_ATS";
+        private const string SP_GETPHARMACY = "USP_CHOOSEPHARMACY_ATS";
+
+        private const string SP_CHECK_ELIGIBILITY = "USP_CHECK_ELIGIBILITYRECORD_ATS";
+        private const string SP_CHECK_PROCESSPRESCRIPTION_TASKID = "USP_GETPROCPRESTASKID_ATS";
+        private const string SP_CHECK_MEMBER_GROUPID = "USP_CHECK_MEMGROUPID_ATS";
+        private const string SP_CHECK_SHIPPING_ADDRESS = "USP_CHECKSHIPPINGADDRESS_ATS";
+        private const string SP_CHECK_ACTIVE_PRESCRIPTION_TASK = "USP_CHECKACTIVEPRESWITHTASK_NEW_ATS";
+        private const string SP_CHECK_PRESCRIPTION_ATTACHMENTS = "USP_GET_PRESATTACHMENTS_ATS";
+        private const string SP_CHECK_LATEST_PRESCRIPTION_ATTACHMENTS = "USP_CHECK_LATESTPRESATTACHMENTS_ATS";
+
+        private const string SP_GET_STARTENDDATE = "USP_GETSTARTANDENDDATE_ATS";
+
+        private const string SP_CHECK_AUDITAPPROVEDPRESCRIPTION = "USP_BRCHKCREATEORINCREMENTPROCESSPRES_AUDIT_ATS";
+        private const string SP_CREATE_PROCESSPRESCRIPTION = "USP_BRCREATEPROCESSPRES_HMO_AUDIT_NOTES_ATS";
+
+        private const string SP_CHECK_PHARMACY_FAX = "USP_PHARMACYFAXINGCHECK_ATS";
+        private static string SP_InsertAttachments = "Usp_InsertAttachments_NEWATS";
+
+        private static string SP_GetLurieVisibility = "USP_GetLurieVisibility_NEWATS";
+        //FREEDOM PHARMACY MAIL NOTIFICATION
+
+        // SENDING FAX , if required  
+
+        private const string SP_UPDATE_AUDITAPPROVEDPRESCRIPTION = "USP_UPDATEAUDITAPROVEDPRESCTASK_ATS";
+
+        #endregion
+
+        #region Methods
+
+        [HttpPost]
+        [ExceptionFilter, ValidateFilter]
+        public AuditApprovedPrescriptionDetails GetData()
+        {
+            TaskScreenArgs objTaskScreenArgs = ATSParams?.ToJsonObject<TaskScreenArgs>();
+            Dictionary<string, object> args = new Dictionary<string, object>();
+            args.Add("@TaskId", objTaskScreenArgs.TaskID ?? "");
+            args.Add("@contract", objTaskScreenArgs.Contract ?? "");
+
+            AuditApprovedPrescriptionDetails objAuditApprovedPrescriptionDetails = new AuditApprovedPrescriptionDetails()
+            {
+                ShippingDetails = new ShippingInformation(),
+                DrugsList = new List<WinManagedDrugs>(),
+                PharmacyList = new List<ObjectBase>(),
+                PhramacyDetails = new PharmacyDetails(),
+                AttachmentList = new List<PrescriptionAttachment>(),
+                NextTask = new WinDTO.Tasks.NextTaskDetails(),
+                WorkQueues = new List<ObjectBase>(),
+                WorkflowStatusList = new List<ObjectBase>(),
+                ScreenArgs = objTaskScreenArgs,
+                DateValidationCallback = null
+            };
+            try
+            {
+              using (DataSet ds = ExecuteDB(SP_GETDATA, objTaskScreenArgs.Contract ?? "", args))
+            {
+                if (ds != null && ds.Tables.Count > 0)
+                {
+                    if (ds.Tables[0] != null && ds.Tables[0].Rows.Count > 0)
+                    {
+                        foreach (DataRow row in ds.Tables[0].Rows)
+                        {
+                            objAuditApprovedPrescriptionDetails.ShippingDetails.FormattedAuthNo = row.Value<string>("FormattedAuthNo") ?? "";
+                            objAuditApprovedPrescriptionDetails.ShippingDetails.Address = row.Value<string>("Address") ?? "";
+                            objAuditApprovedPrescriptionDetails.ShippingDetails.AuthNo = row.Value<string>("AuthorizationNumber") ?? "";
+                            objAuditApprovedPrescriptionDetails.ShippingDetails.CertifiedFor = row.Value<string>("Certifiedfor") ?? "";
+                            objAuditApprovedPrescriptionDetails.ShippingDetails.CPTCode = row.Value<string>("CPTCode") ?? "";
+                            objAuditApprovedPrescriptionDetails.ShippingDetails.DateOfBirth = Convert.ToDateTime(row.Value<string>("DOB")).ToString("MM/dd/yyyy") ?? "";
+                            objAuditApprovedPrescriptionDetails.ShippingDetails.GroupId = row.Value<string>("GroupID") ?? "";
+                            objAuditApprovedPrescriptionDetails.ShippingDetails.GroupName = row.Value<string>("GroupName") ?? "";
+                            objAuditApprovedPrescriptionDetails.ShippingDetails.MemberAddress = row.Value<string>("MemberAddress") ?? "";
+                            objAuditApprovedPrescriptionDetails.ShippingDetails.MemberId = row.Value<string>("Memberid") ?? "";
+                            objAuditApprovedPrescriptionDetails.ShippingDetails.PatientName = row.Value<string>("PatName") ?? "";
+                            objAuditApprovedPrescriptionDetails.ShippingDetails.PhysicianName = row.Value<string>("Physician") ?? "";
+                            objAuditApprovedPrescriptionDetails.ShippingDetails.Relationship = row.Value<string>("Relationship") ?? "";
+                            objAuditApprovedPrescriptionDetails.ShippingDetails.ServiceDates = row.Value<string>("ServiceDates") ?? "";
+                            objAuditApprovedPrescriptionDetails.ShippingDetails.PharmacyCode = row.Value<string>("PharmCode") ?? "";
+                            objAuditApprovedPrescriptionDetails.ShippingDetails.PharmacyLogin = row.Value<string>("PharmLogin") ?? "";
+                            objAuditApprovedPrescriptionDetails.ShippingDetails.Priority = row.Value<string>("PriorityDesc") ?? "";
+                            objAuditApprovedPrescriptionDetails.ShippingDetails.PharmacyName = row.Value<string>("PharmName") ?? "";
+                            objAuditApprovedPrescriptionDetails.ShippingDetails.MailFrom = row.Value<string>("MailFrom") ?? "";
+                            objAuditApprovedPrescriptionDetails.ShippingDetails.MailTo = row.Value<string>("MailTo") ?? "";
+                            objAuditApprovedPrescriptionDetails.ShippingDetails.MailCc = row.Value<string>("MailCC") ?? "";
+                            objAuditApprovedPrescriptionDetails.ShippingDetails.MailBcc = row.Value<string>("MailBCC") ?? "";
+                            objAuditApprovedPrescriptionDetails.ShippingDetails.MailSubject = row.Value<string>("MailSubject") ?? "";
+                            objAuditApprovedPrescriptionDetails.ShippingDetails.MailBody = row.Value<string>("MailBody") ?? "";
+                            objAuditApprovedPrescriptionDetails.ShippingDetails.MailFooter = row.Value<string>("MailFooter") ?? "";
+                            objAuditApprovedPrescriptionDetails.Faxflag = row.Value<string>("Faxflag") ?? "";
+                            }
+                    }
+
+                    if (ds.Tables[1] != null && ds.Tables[1].Rows.Count > 0)
+                    {
+                        foreach (DataRow row in ds.Tables[1].Rows)
+                        {
+                            objAuditApprovedPrescriptionDetails.DrugsList.Add(new WinManagedDrugs()
+                            {
+                                AuthorizationNumber = row.Value<string>("AuthorizationNumber") ?? "",
+                                Pharmacy = row.Value<string>("Pharmacy")?? "",
+                                RxType = row.Value<string>("O/R")?? "",
+                                ApprovedQty = row.Value<string>("ApprovedQty")?? "",
+                                ApprQty = row.Value<string>("Appr")?? "",
+                                NDC = row.Value<string>("NDC")?? "",
+                                From = row.Value<string>("From")?? "",
+                                DrugName = row.Value<string>("Drug Name")?? "",
+                                CertQty = row.Value<string>("Cert")?? "",
+                                ReqQty = row.Value<string>("Req")?? "",
+                                QLmtQty = row.Value<string>("QLmt")?? "",
+                                DURQty = row.Value<string>("DUR")?? "",
+                                Reason = row.Value<string>("Reason")?? "",
+
+                                Copay = row.Value<string>("Copay/Coins")?? "",
+                                AuthNo = row.Value<string>("AuthNo")?? "",
+                                GPIName = row.Value<string>("GPIName")?? "",
+                                PharmacyLogin = row.Value<string>("Pharmacy")?? "",
+                                TaskId = row.Value<string>("TaskID")?? "",
+                                LineID = row.Value<string>("LineID")?? "",
+                                GPICode = row.Value<string>("GPICode")?? "",
+                                AWP = row.Value<string>("AWP")?? "",
+                                GPN = row.Value<string>("GPN")?? "",
+                                Discount = row.Value<string>("Discount")?? "",
+                                MemberID = row.Value<string>("MemberID")?? "",
+                                DispQty = row.Value<string>("DispQty")?? "",
+                                DenReason = row.Value<string>("DenReason")?? "",
+                                SlNo = row.Value<string>("SlNo")?? "",
+                                ErrorFlag = row.Value<string>("ErrorFlag")?? "",
+                                GroupID = row.Value<string>("PermanentNumber")?? "",
+                                MedcoAuthNo = row.Value<string>("MedcoAuthno")?? ""
+                            });
+                        }
+                    }
+
+                    if (ds.Tables[2] != null && ds.Tables[2].Rows.Count > 0)
+                    {
+                        foreach (DataRow row in ds.Tables[2].Rows)
+                        {
+                            objAuditApprovedPrescriptionDetails.PharmacyList.Add(new ObjectBase()
+                            {
+                                ID = row.Value<string>("PharmLogin") ?? "",
+                                Text = row.Value<string>("Pharmname") ?? "",
+                            });
+                        }
+                    }
+
+                    if (ds.Tables[3] != null && ds.Tables[3].Rows.Count > 0)
+                    {
+                        objAuditApprovedPrescriptionDetails.NextTask.Attachments = new List<ObjectBase>();
+
+                        foreach (DataRow row in ds.Tables[3].Rows)
+                        {
+                            var item = new ObjectBase()
+                            {
+                                ID = row.Value<string>("FaxID") ?? "",
+                                Text = row.Value<string>("Filename") ?? "",
+                                Tag = row.Value<string>("AttachmentPath") ?? ""
+                            };
+                            var data = "";
+                            if (row["PDF_Document"] != null)
+                            {
+                                try
+                                { data = Convert.ToBase64String((byte[])row["PDF_Document"]); }
+                                catch { }
+                            }
+                            item.Additional = data;
+                            objAuditApprovedPrescriptionDetails.NextTask.Attachments.Add(item);
+                        }
+
+                    }
+
+                    if (ds.Tables[4] != null && ds.Tables[4].Rows.Count > 0)
+                    {
+                        foreach (DataRow row in ds.Tables[4].Rows)
+                        {
+                            objAuditApprovedPrescriptionDetails.NextTask.DateMedNeeds = ((row.Value<string>("DateMedsNeeded") ?? "") != "") ? Convert.ToDateTime(row.Value<string>("DateMedsNeeded")).ToString("MM/dd/yyyy") : "";
+                        }
+                    }
+
+
+
+
+                    //if (ds.Tables[3] != null && ds.Tables[3].Rows.Count > 0)
+                    //{
+                    //    foreach (DataRow row in ds.Tables[3].Rows)
+                    //    {
+                    //        objAuditApprovedPrescriptionDetails.NextTask.Attachments = new List<ObjectBase>();
+                    //        objAuditApprovedPrescriptionDetails.NextTask.Attachments.Add(new ObjectBase()
+                    //        {
+                    //            Text = row.Value<string>("FileName"),
+                    //            Tag = row.Value<string>("AttachmentPath"),
+                    //        });
+                    //    }
+                    //}
+
+                    /* ---  Get Next Task  ---  */
+                    TaskController objTaskController = new TaskController();
+                    DataTable NextTask = objTaskController?.TaskFlow(objTaskScreenArgs?.Contract ?? "", objTaskScreenArgs?.UserRole ?? "", objTaskScreenArgs?.TaskName ?? "", "Complete", "");
+                    objAuditApprovedPrescriptionDetails.NextTask.Task = new WinDTO.Tasks.TaskInfo();
+                    if (NextTask != null && NextTask.Rows.Count > 0)
+                    {
+                        foreach (DataRow dr in NextTask.Rows)
+                        {
+                            objAuditApprovedPrescriptionDetails.NextTask.Task.TaskName = dr.Value<string>("TaskName") ?? "";
+                            objAuditApprovedPrescriptionDetails.NextTask.Task.SendToQueue = new ObjectBase() { Text = dr.Value<string>("WorkQueue") ?? "" };
+                            objAuditApprovedPrescriptionDetails.NextTask.Task.Priority = dr.Value<string>("Priority") ?? "";
+                           }
+                    }
+                    /* ---  Get Work Queue  ---  */
+                    //   DataTable WorkQueue = objTaskController.TaskTo(objTaskScreenArgs.Contract);
+                    objAuditApprovedPrescriptionDetails.WorkQueues = new List<ObjectBase>();
+                    objAuditApprovedPrescriptionDetails.WorkQueues = objTaskController?.TaskTo(objTaskScreenArgs?.Contract ?? "");
+                    //objAuditApprovedPrescriptionDetails.WorkQueues = new List<ObjectBase>();
+                    //if (WorkQueue != null && WorkQueue.Rows.Count > 0)
+                    //{
+                    //    foreach (DataRow row in WorkQueue.Rows)
+                    //    {
+                    //        objAuditApprovedPrescriptionDetails.WorkQueues.Add(new ObjectBase()
+                    //        {
+                    //            ID = row.Value<string>("Name"),
+                    //            Text = row.Value<string>("TaskTo")
+                    //        });
+                    //    }
+                    //}
+
+                    //if (objAuditApprovedPrescriptionDetails.PharmacyList != null && objAuditApprovedPrescriptionDetails.PharmacyList.Count > 0)
+                    //{
+                    //    objAuditApprovedPrescriptionDetails.WorkQueues = objAuditApprovedPrescriptionDetails.PharmacyList;
+                    //}
+                    /* ---  Work flow status  ---  */
+                    MedicalAuthController objMedicalAuthController = new MedicalAuthController();
+                    objAuditApprovedPrescriptionDetails.WorkflowStatusList = objMedicalAuthController.GetStatus("Audit Approved Prescription", objTaskScreenArgs?.Contract ?? "");
+
+                    objAuditApprovedPrescriptionDetails.ShippingDetails.MemberId = objTaskScreenArgs?.MemberID ?? "";
+                    objAuditApprovedPrescriptionDetails.ShippingDetails.Contract = objTaskScreenArgs?.Contract ?? "";
+                    objAuditApprovedPrescriptionDetails.ShippingDetails.Status.Text = "Complete";
+
+                    objAuditApprovedPrescriptionDetails.PhramacyDetails = GetPharmacy(objTaskScreenArgs?.AuthNumber ?? "", objTaskScreenArgs?.Contract ?? "");
+                    CloseTask objCloseTask = new CloseTask()
+                    {
+                        TaskId = objTaskScreenArgs?.TaskID ?? "",
+                        TaskName = objTaskScreenArgs?.TaskName ?? "",
+                        Contract = objTaskScreenArgs?.Contract ?? ""
+                    };
+                    List<ObjectBase> PreviousNotesList = new List<ObjectBase>();
+                    PreviousNotesList = objTaskController.GetTaskPreviousNotes(objCloseTask);
+
+                    if (PreviousNotesList != null)
+                    {
+                        if (PreviousNotesList.Count > 0)
+                        {
+                                foreach (var item in PreviousNotesList)
+                                 {
+                                objAuditApprovedPrescriptionDetails.TaskDetails.PreviousNotes = objAuditApprovedPrescriptionDetails.TaskDetails.PreviousNotes + "" + "---- "
+                                    + item.Tag + " " + item.ID + " ----" + Environment.NewLine + item.Text +
+                                Environment.NewLine + Environment.NewLine;
+                                }
+                        }
+                    }
+
+                    if (MANAGED.Contains(objTaskScreenArgs.Contract.ToUpper()))
+                    {
+                        PrescriptionChecking objPrescriptionChecking = new PrescriptionChecking();
+                        objPrescriptionChecking = CheckEligibility(objTaskScreenArgs?.MemberID ?? "", objTaskScreenArgs?.Contract ?? "");
+
+                        if (!string.IsNullOrEmpty(objPrescriptionChecking?.Error))
+                        {
+                            if (Convert.ToInt32(objPrescriptionChecking.Error) == 1)
+                            {
+                                objAuditApprovedPrescriptionDetails.ShippingDetails.PBMError = "Record not found in MemberInformation";
+                            }
+                            else if (Convert.ToInt32(objPrescriptionChecking.Error) == 2)
+                            {
+                                objAuditApprovedPrescriptionDetails.ShippingDetails.PBMError = "Record not found in Eligibility file";
+                            }
+                            else if (Convert.ToInt32(objPrescriptionChecking.Error) == 3)
+                            {
+                                objAuditApprovedPrescriptionDetails.ShippingDetails.PBMError = "Record found in Eligibility file, but name in the system not matching with that in Eligibility File";
+                            }
+                            else if (Convert.ToInt32(objPrescriptionChecking.Error) == 4)
+                            {
+                                objAuditApprovedPrescriptionDetails.ShippingDetails.PBMError = "Record found in Eligibility file, but Perm Number in the system not matching with that in Eligibility File";
+                            }
+                            else if (Convert.ToInt32(objPrescriptionChecking.Error) == 5)
+                            {
+                                objAuditApprovedPrescriptionDetails.ShippingDetails.PBMError = "Record found in Eligibility file, but Perm Number in the system not matching with that in Eligibility File";
+                            }
+                            else if (Convert.ToInt32(objPrescriptionChecking.Error) == 6)
+                            {
+                                objAuditApprovedPrescriptionDetails.ShippingDetails.PBMError = "Copay discrepancy in Eligibility File for record: SlNo: " + objPrescriptionChecking.Error;
+                            }
+                            else if (Convert.ToInt32(objPrescriptionChecking.Error) == 7)
+                            {
+                                objAuditApprovedPrescriptionDetails.ShippingDetails.PBMError = "Copay not found in Eligibility File for the member";
+                            }
+                            else if (Convert.ToInt32(objPrescriptionChecking.Error) == 0)
+                            {
+                                ObjectBase objObjectBase = new ObjectBase();
+                                objObjectBase = CheckProcessPrescriptionTaskId(objTaskScreenArgs?.MemberID ?? "", objTaskScreenArgs?.FormattedAuthNumber ?? "", objTaskScreenArgs?.Contract ?? "", "Infertility");
+                                if (Convert.ToInt32(objObjectBase.ID) == 0)
+                                {
+                                    objAuditApprovedPrescriptionDetails.ShippingDetails.PBMError = "";
+                                }
+                                else
+                                {
+                                    objPrescriptionChecking = CheckMemberGroupId(objTaskScreenArgs?.MemberID ?? "", objTaskScreenArgs?.Contract ?? "", objPrescriptionChecking?.SlNo ?? "");
+                                    if ((!string.IsNullOrEmpty(objPrescriptionChecking.CheckType)) && objPrescriptionChecking.CheckType == "False")
+                                    {
+                                        if (Convert.ToInt32(objPrescriptionChecking.Error) == 1)
+                                        {
+                                            objAuditApprovedPrescriptionDetails.ShippingDetails.PBMError = "Group ID blank in Member Information";
+                                        }
+                                        else if (Convert.ToInt32(objPrescriptionChecking.Error) == 2)
+                                        {
+                                            objAuditApprovedPrescriptionDetails.ShippingDetails.PBMError = "Group ID blank in Eligibility table";
+                                        }
+                                        else if (Convert.ToInt32(objPrescriptionChecking.Error) == 3)
+                                        {
+                                            objAuditApprovedPrescriptionDetails.ShippingDetails.PBMError = "Group ID in MemberInformation does not match with that in Eligibility table";
+                                        }
+                                    }
+                                    else
+                                    {
+                                        objPrescriptionChecking = CheckShippingAddress(objTaskScreenArgs?.TaskID ?? "", objTaskScreenArgs?.Contract ?? "");
+                                        if ((!string.IsNullOrEmpty(objPrescriptionChecking.CheckType)) && objPrescriptionChecking.CheckType == "False")
+                                        {
+                                            if (Convert.ToInt32(objPrescriptionChecking.Error) == 1)
+                                            {
+                                                objAuditApprovedPrescriptionDetails.ShippingDetails.PBMError = "No Shipping Address";
+                                            }
+                                            else if (Convert.ToInt32(objPrescriptionChecking.Error) == 2)
+                                            {
+                                                objAuditApprovedPrescriptionDetails.ShippingDetails.PBMError = "Shipping Address is blank";
+                                            }
+                                            else if (Convert.ToInt32(objPrescriptionChecking.Error) == 3)
+                                            {
+                                                objAuditApprovedPrescriptionDetails.ShippingDetails.PBMError = "No active shipping address";
+                                            }
+                                        }
+                                        else
+                                        {
+                                            PrescriptionTask objPrescriptionTask = new PrescriptionTask();
+                                            objPrescriptionTask = CheckActivePrescriptionTask(objTaskScreenArgs?.MemberID ?? "", objTaskScreenArgs?.AuthNumber ?? "", objTaskScreenArgs?.Contract ?? "", "Infertility", objTaskScreenArgs?.TaskID ?? "");
+                                            if ((!string.IsNullOrEmpty(objPrescriptionTask.CheckActivePresWithTaskNew)) && objPrescriptionTask.CheckActivePresWithTaskNew == "False")
+                                            {
+                                                if (Convert.ToInt32(objPrescriptionTask.error) == 1)
+                                                {
+                                                    objAuditApprovedPrescriptionDetails.ShippingDetails.PBMError = "No prescription lines found with the task";
+                                                }
+                                                else if (Convert.ToInt32(objPrescriptionTask.error) == 2)
+                                                {
+                                                    objAuditApprovedPrescriptionDetails.ShippingDetails.PBMError = "Prescription lines repeat in more than one Audit Approved Prescription task";
+                                                }
+                                                else if (Convert.ToInt32(objPrescriptionTask.error) == 3)
+                                                {
+                                                    objAuditApprovedPrescriptionDetails.ShippingDetails.PBMError = "Some Prescription lines are not associated to any Audit Approved Prescription task";
+                                                }
+                                                else if (Convert.ToInt32(objPrescriptionTask.error) == 4)
+                                                {
+                                                    objAuditApprovedPrescriptionDetails.ShippingDetails.PBMError = "More than one chosen pharmacy for the set of prescription";
+                                                }
+                                            }
+                                            else
+                                            {
+                                                //CheckPrescriptionAttchments(objTaskScreenArgs.TaskID, objTaskScreenArgs.Contract);
+                                                //CheckLatestPrescriptionAttachments(objTaskScreenArgs.TaskID, objTaskScreenArgs.Contract);
+                                                objAuditApprovedPrescriptionDetails.ShippingDetails.PBMError = "No error messages to display";
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                }
+            }
+              objAuditApprovedPrescriptionDetails.ScreenArgs.Speciality = "Infertility";
+            }
+            catch { }
+            return objAuditApprovedPrescriptionDetails;
+        }
+
+        [NonAction]
+        public PharmacyDetails GetPharmacy(string AuthNo, string Contract)
+        {
+            PharmacyDetails objPharmacyDetails = new PharmacyDetails();
+            try
+            {
+                Dictionary<string, object> args = new Dictionary<string, object>();
+                args.Add("@AuthNo", AuthNo ?? "");
+                args.Add("@contract", Contract ?? "");
+                using (DataSet ds = ExecuteDB(SP_GETPHARMACY, Contract, args))
+                {
+                    if (ds != null && ds.Tables.Count > 0)
+                    {
+                        if (ds.Tables[0] != null && ds.Tables[0].Rows.Count > 0)
+                        {
+                            DataTable dt = ds.Tables[0];
+                            foreach (DataRow dr in dt.Rows)
+                            {
+                                objPharmacyDetails.PreviousChosenPharmCode = dr.Value<string>("PreviousChosenPharmCode") ?? "";
+                                objPharmacyDetails.PreviousChosenPharmName = dr.Value<string>("PreviousChosenPharmName") ?? "";
+                                objPharmacyDetails.PharmacyLogin = dr.Value<string>("PharmacyLogin") ?? "";
+                                objPharmacyDetails.OpenPPOrderPharmName = dr.Value<string>("OpenPPOrderPharmName") ?? "";
+                                objPharmacyDetails.OpenPPOrderPharmLogin = dr.Value<string>("OpenPPOrderPharmLogin") ?? "";
+                                objPharmacyDetails.OpenPPOrderPharmCode = dr.Value<string>("OpenPPOrderPharmCode") ?? "";
+                            }
+                        }
+                    }
+                }
+            }
+            catch { }
+            return objPharmacyDetails;
+        }
+
+        [NonAction]
+        public PrescriptionChecking CheckEligibility(string Memberid, string Contract)
+        {
+            PrescriptionChecking objPrescriptionChecking = new PrescriptionChecking();
+            try
+            {
+                Dictionary<string, object> args = new Dictionary<string, object>();
+                args.Add("@memberid", Memberid ?? "");
+                args.Add("@contract", Contract ?? "");
+                using (DataSet ds = ExecuteDB(SP_CHECK_ELIGIBILITY, Contract ?? "", args))
+                {
+                    if (ds != null && ds.Tables.Count > 0)
+                    {
+                        if (ds.Tables[0] != null && ds.Tables[0].Rows.Count > 0)
+                        {
+                            foreach (DataRow row in ds.Tables[0].Rows)
+                            {
+                                objPrescriptionChecking.CheckType = row.Value<string>("check_EligibilityRecord") ?? "";
+                                objPrescriptionChecking.Error = row.Value<string>("error") ?? "";
+                                objPrescriptionChecking.SlNo = row.Value<string>("slno") ?? "";
+                            }
+                        }
+                    }
+                }
+            }
+            catch { }
+            return objPrescriptionChecking;
+        }
+
+        [NonAction]
+        public ObjectBase CheckProcessPrescriptionTaskId(string MemberId, string AuthNo, string Contract, string Speciality)
+        {
+            ObjectBase objObjectBase = new ObjectBase();
+            try
+            {
+                Dictionary<string, object> args = new Dictionary<string, object>();
+                args.Add("@memberid", MemberId ?? "");
+                args.Add("@authorizationnumber", AuthNo ?? "");
+                args.Add("@contract", Contract ?? "");
+                args.Add("@speciality", Speciality ?? "");
+                using (DataSet ds = ExecuteDB(SP_CHECK_PROCESSPRESCRIPTION_TASKID, Contract ?? "", args))
+                {
+                    if (ds != null && ds.Tables.Count > 0)
+                    {
+                        if (ds.Tables[0] != null && ds.Tables[0].Rows.Count > 0)
+                        {
+                            foreach (DataRow row in ds.Tables[0].Rows)
+                            {
+                                objObjectBase.ID = row.Value<string>("Taskid") ?? "";
+                                objObjectBase.Text = row.Value<string>("authorizationnumber") ?? "";
+                            }
+                        }
+                    }
+                }
+            }
+            catch { }
+            return objObjectBase;
+        }
+
+        [NonAction]
+        public PrescriptionChecking CheckMemberGroupId(string MemberId, string Contract, string slno)
+        {
+            PrescriptionChecking objPrescriptionChecking = new PrescriptionChecking();
+            try
+            {
+                Dictionary<string, object> args = new Dictionary<string, object>();
+                args.Add("@memberid", MemberId ?? "");
+                args.Add("@contract", Contract ?? "");
+                args.Add("@slno", slno ?? "");
+                using (DataSet ds = ExecuteDB(SP_CHECK_MEMBER_GROUPID, Contract ?? "", args))
+                {
+                    if (ds != null && ds.Tables.Count > 0)
+                    {
+                        if (ds.Tables[0] != null && ds.Tables[0].Rows.Count > 0)
+                        {
+                            foreach (DataRow row in ds.Tables[0].Rows)
+                            {
+                                objPrescriptionChecking.CheckType = row.Value<string>("check_MemGroupID") ?? "";
+                                objPrescriptionChecking.Error = row.Value<string>("Error") ?? "";
+                            }
+                        }
+                    }
+                }
+            }
+            catch { }
+            return objPrescriptionChecking;
+        }
+
+        [NonAction]
+        public PrescriptionChecking CheckShippingAddress(string TaskId, string Contract)
+        {
+            PrescriptionChecking objPrescriptionChecking = new PrescriptionChecking();
+            try
+            {
+                Dictionary<string, object> args = new Dictionary<string, object>();
+                args.Add("@taskid", TaskId ?? "");
+                using (DataSet ds = ExecuteDB(SP_CHECK_SHIPPING_ADDRESS, Contract ?? "", args))
+                {
+                    if (ds != null && ds.Tables.Count > 0)
+                    {
+                        if (ds.Tables[0].Rows.Count > 0)
+                        {
+                            foreach (DataRow row in ds.Tables[0].Rows)
+                            {
+                                objPrescriptionChecking.CheckType = row.Value<string>("check_ShippingAddress") ?? "";
+                                objPrescriptionChecking.Error = row.Value<string>("Error") ?? "";
+                            }
+                        }
+                    }
+                }
+            }
+            catch { }
+            return objPrescriptionChecking;
+        }
+
+        [NonAction]
+        public PrescriptionTask CheckActivePrescriptionTask(string MemberId, string AuthNo, string Contract, string Speciality, string TaskId)
+        {
+            PrescriptionTask objPrescriptionTask = new PrescriptionTask();
+            try
+            {
+                Dictionary<string, object> args = new Dictionary<string, object>();
+                args.Add("@memberid", MemberId ?? "");
+                args.Add("@authorizationnumber", AuthNo ?? "");
+                args.Add("@contract", Contract ?? "");
+                args.Add("@speciality", Speciality ?? "");
+                args.Add("@taskid", TaskId ?? "");
+                using (DataSet ds = ExecuteDB(SP_CHECK_ACTIVE_PRESCRIPTION_TASK, Contract ?? "", args))
+                {
+                    if (ds != null && ds.Tables.Count > 0)
+                    {
+                        if (ds.Tables[0] != null && ds.Tables[0].Rows.Count > 0)
+                        {
+                            foreach (DataRow row in ds.Tables[0].Rows)
+                            {
+                                objPrescriptionTask.error = row.Value<string>("error") ?? "";
+                                objPrescriptionTask.cntpharmacymaster = row.Value<string>("cntpharmacymaster") ?? "";
+                                objPrescriptionTask.Message = row.Value<string>("message") ?? "";
+                                objPrescriptionTask.CheckActivePresWithTaskNew = row.Value<string>("check_activePresWithTask_new") ?? "";
+                                objPrescriptionTask.NumberOfDrugs = row.Value<string>("NumberofDrugs") ?? "";
+                                objPrescriptionTask.pharmacymaster = row.Value<string>("pharmacymaster") ?? "";
+                                objPrescriptionTask.PharmLogin = row.Value<string>("PharmLogin") ?? "";
+                            }
+                        }
+                    }
+                }
+            }
+            catch { }
+            return objPrescriptionTask;
+        }
+
+        [NonAction]
+        public PrescriptionAttachment CheckPrescriptionAttchments(string TaskId, string Contract)
+        {
+            PrescriptionAttachment objPrescriptionAttachment = new PrescriptionAttachment();
+            try
+            {
+                Dictionary<string, object> args = new Dictionary<string, object>();
+                args.Add("@taskid", TaskId ?? "");
+                using (DataSet ds = ExecuteDB(SP_CHECK_PRESCRIPTION_ATTACHMENTS, Contract ?? "", args))
+                {
+                    if (ds != null && ds.Tables.Count > 0)
+                    {
+                        if (ds.Tables[0] != null && ds.Tables[0].Rows.Count > 0)
+                        {
+                            foreach (DataRow row in ds.Tables[0].Rows)
+                            {
+                                objPrescriptionAttachment.AttachmentPath = row.Value<string>("AttachmentPath") ?? "";
+                            }
+                        }
+                    }
+                }
+            }
+            catch { }
+            return objPrescriptionAttachment;
+        }
+
+        [NonAction]
+        public PrescriptionAttachment CheckLatestPrescriptionAttachments(string TaskId, string Contract)
+        {
+            PrescriptionAttachment objPrescriptionAttachment = new PrescriptionAttachment();
+            try
+            {
+                Dictionary<string, object> args = new Dictionary<string, object>();
+                args.Add("@TaskId", TaskId ?? "");
+                using (DataSet ds = ExecuteDB(SP_CHECK_LATEST_PRESCRIPTION_ATTACHMENTS, Contract ?? "", args))
+                {
+                    if (ds != null && ds.Tables.Count > 0)
+                    {
+                        if (ds.Tables[0] != null && ds.Tables[0].Rows.Count > 0)
+                        {
+                            foreach (DataRow row in ds.Tables[0].Rows)
+                            {
+                                objPrescriptionAttachment.AttachmentPath = row.Value<string>("cntattachment") ?? "";
+                                objPrescriptionAttachment.DonorAttachmentPath = row.Value<string>("cntDonorattach") ?? "";
+                            }
+                        }
+                    }
+                }
+            }
+            catch { }
+            return objPrescriptionAttachment;
+        }
+
+        [NonAction]
+        public StartEndDate GetStartEndDate(string MemberId, string AuthNo, string Contract, string Speciality)
+        {
+            StartEndDate objStartEndDate = new StartEndDate();
+            try
+            {
+                Dictionary<string, object> args = new Dictionary<string, object>();
+                args.Add("@memberid", MemberId ?? "");
+                args.Add("@Authno", AuthNo ?? "");
+                args.Add("@Contract", Contract ?? "");
+                args.Add("@Speciality", Speciality ?? "");
+                using (DataSet ds = ExecuteDB(SP_GET_STARTENDDATE, Contract ?? "", args))
+                {
+                    if (ds != null && ds.Tables.Count > 0)
+                    {
+                        if (ds.Tables[0] != null && ds.Tables[0].Rows.Count > 1)
+                        {
+                            DataRow dr = ds.Tables[0].Rows[0];
+                            objStartEndDate.Appfrom = dr.Value<string>("Appfrom") ?? "";
+                            objStartEndDate.AppTo = dr.Value<string>("AppTo") ?? "";
+                            // objStartEndDate.TimeofEntry = dr.Value<string>("TimeofEntry");
+                        }
+                    }
+                }
+            }
+            catch { }
+            return objStartEndDate;
+        }
+
+        [NonAction]
+        public TaskToDetail CheckPharmacyFax(string PharmacyCode, string TaskId, string Contract)
+        {
+            TaskToDetail tasktodetails = new TaskToDetail();
+            try
+            {
+                Dictionary<string, object> args = new Dictionary<string, object>();
+                args.Add("@PharmCode", PharmacyCode ?? "");
+                args.Add("@AAPTaskid", TaskId ?? "");
+                args.Add("@Contract", Contract ?? "");
+                using (DataSet ds = ExecuteDB(SP_CHECK_PHARMACY_FAX, Contract ?? "", args))
+                    if (ds != null && ds.Tables.Count > 0)
+                    {
+                        if (ds.Tables.Count > 0 && ds.Tables[0].Rows.Count > 0)
+                        {
+                            DataTable dt = ds.Tables[0];
+                            foreach (DataRow dr in dt.Rows)
+                            {
+                                tasktodetails.TaskTo = dr.Value<string>("TaskTo") ?? "";
+                                tasktodetails.Switch = dr.Value<string>("Switch") ?? "";
+                            }
+                        }
+                    }
+            }
+            catch { }
+            return tasktodetails;
+        }
+
+        [HttpPost]
+        [ValidateFilter, ExceptionFilter]
+
+        public object Save()
+        {
+            try
+            {
+                string AuthNumber = string.Empty;
+                string OutpatientId = string.Empty;
+                AuditApprovedPrescriptionDetails objAuditApprovedPrescriptionDetails = ATSParams?.ToJsonObject<AuditApprovedPrescriptionDetails>();
+                Dictionary<string, object> _args = new Dictionary<string, object>();
+
+                StartEndDate objStartEndDate = new StartEndDate();
+                objStartEndDate = GetStartEndDate(objAuditApprovedPrescriptionDetails?.ScreenArgs?.MemberID ?? "", objAuditApprovedPrescriptionDetails?.ScreenArgs?.AuthNumber ?? "",
+                    objAuditApprovedPrescriptionDetails?.ScreenArgs?.Contract ?? "", objAuditApprovedPrescriptionDetails?.ScreenArgs?.Speciality ?? "");
+
+                if ((objAuditApprovedPrescriptionDetails?.NextTask?.Task?.TaskName ?? "") == "Process Prescription")
+                {
+                    if ((!MANAGED.Contains(objAuditApprovedPrescriptionDetails?.ScreenArgs?.Contract ?? "")) &&
+                        ((objAuditApprovedPrescriptionDetails?.NextTask?.Task?.SendToQueue?.Text ?? "") != "Freedom Fertility Pharmacy") ||
+                        (objAuditApprovedPrescriptionDetails?.NextTask?.Task?.SendToQueue?.Text ?? "") != "AllianceRx Walgreens Prime (ARxWP) Pharmacy")
+                    {
+                        TaskToDetail objTaskToDetails = new TaskToDetail();
+                        objTaskToDetails = CheckPharmacyFax(objAuditApprovedPrescriptionDetails?.NextTask?.Task?.SendToQueue?.ID ?? "",
+                        objAuditApprovedPrescriptionDetails?.ScreenArgs?.TaskID ?? "", objAuditApprovedPrescriptionDetails?.ScreenArgs?.Contract ?? "");
+                    }
+                    CheckAAPTask(objAuditApprovedPrescriptionDetails?.ScreenArgs?.TaskID ?? "", objAuditApprovedPrescriptionDetails?.ScreenArgs?.MemberID ?? "",
+                    objAuditApprovedPrescriptionDetails?.ScreenArgs?.Contract ?? "", objAuditApprovedPrescriptionDetails?.ScreenArgs?.Speciality ?? "",
+                    objAuditApprovedPrescriptionDetails?.ScreenArgs?.AuthNumber ?? "", objAuditApprovedPrescriptionDetails?.ScreenArgs?.UserName ?? "",objAuditApprovedPrescriptionDetails?.NextTask?.DateMedNeeds ?? "");
+
+                    CreatePrescription(objAuditApprovedPrescriptionDetails?.ShippingDetails?.MemberId ?? "", objAuditApprovedPrescriptionDetails?.ShippingDetails?.Contract ?? "",
+                        objAuditApprovedPrescriptionDetails?.ScreenArgs?.Speciality ?? "", objAuditApprovedPrescriptionDetails?.ScreenArgs?.AuthNumber ?? "",
+                        objAuditApprovedPrescriptionDetails?.ScreenArgs?.UserName ?? "", objAuditApprovedPrescriptionDetails?.NextTask?.Task?.SendToQueue?.ID ?? "",
+                        objStartEndDate?.Appfrom ?? "", objStartEndDate?.AppTo ?? "", "Member ID :" + objAuditApprovedPrescriptionDetails?.ScreenArgs?.MemberID  + "  ,Auth No :" + objAuditApprovedPrescriptionDetails?.ScreenArgs?.FormattedAuthNumber ?? "",
+                        objAuditApprovedPrescriptionDetails.NextTask.Notes, "", objAuditApprovedPrescriptionDetails?.NextTask?.Task?.Priority ?? "Medium", objAuditApprovedPrescriptionDetails?.NextTask?.Task?.SendToQueue?.ID,
+                        "", "", "", objAuditApprovedPrescriptionDetails?.ScreenArgs?.TaskID ?? "", "", objAuditApprovedPrescriptionDetails?.ShippingDetails?.Address ?? "", "ProcessPrescription", objAuditApprovedPrescriptionDetails?.NextTask?.DateMedNeeds ?? "");
+                    // Attachemnt paths are sending as blank. which is wrong, we need to send those paths.
+
+                    if (objAuditApprovedPrescriptionDetails?.NextTask?.Task?.SendToQueue?.ID == "PH-005-FRE" ||
+                        objAuditApprovedPrescriptionDetails?.NextTask?.Task?.SendToQueue?.ID == "PH-005-MDR" ||
+                        objAuditApprovedPrescriptionDetails?.NextTask?.Task?.SendToQueue?.ID == "PH-005-IVP")
+                    {
+                        if (!(string.IsNullOrWhiteSpace(objAuditApprovedPrescriptionDetails?.ShippingDetails?.MailTo)))
+                        {
+                            SendMail(objAuditApprovedPrescriptionDetails.ShippingDetails.MailFrom ?? "", objAuditApprovedPrescriptionDetails?.ShippingDetails.MailTo ?? "",
+                            objAuditApprovedPrescriptionDetails?.ShippingDetails?.MailCc ?? "", objAuditApprovedPrescriptionDetails?.ShippingDetails.MailBcc ?? "",
+                            objAuditApprovedPrescriptionDetails?.ShippingDetails?.MailSubject ?? "", objAuditApprovedPrescriptionDetails?.ShippingDetails.MailBody ?? "",
+                            objAuditApprovedPrescriptionDetails?.ShippingDetails?.Contract ?? "", null, null, null, Utilities.Common.UserName ?? "");
+                        }
+
+                    }
+                    InsertAttachments(objAuditApprovedPrescriptionDetails, objAuditApprovedPrescriptionDetails?.ScreenArgs?.TaskID ?? "");
+
+                }
+                else
+                {
+                    CreatePrescription(objAuditApprovedPrescriptionDetails?.ShippingDetails?.MemberId ?? "", objAuditApprovedPrescriptionDetails?.ShippingDetails?.Contract ?? "",
+                        objAuditApprovedPrescriptionDetails?.ScreenArgs?.Speciality ?? "", objAuditApprovedPrescriptionDetails?.ScreenArgs?.AuthNumber ?? "",
+                        objAuditApprovedPrescriptionDetails?.ScreenArgs?.UserName, objAuditApprovedPrescriptionDetails?.NextTask?.Task?.SendToQueue?.Text ?? "",
+                        objStartEndDate?.Appfrom ?? "", objStartEndDate?.AppTo ?? "", "Member ID :" + objAuditApprovedPrescriptionDetails?.ScreenArgs.MemberID + "  ,Auth No :" + objAuditApprovedPrescriptionDetails?.ScreenArgs?.FormattedAuthNumber ?? "",
+                        objAuditApprovedPrescriptionDetails?.NextTask?.Notes ?? "", "", "Medium", objAuditApprovedPrescriptionDetails?.NextTask?.Task?.SendToQueue.ID ?? "",
+                        "", "", "", objAuditApprovedPrescriptionDetails?.ScreenArgs?.TaskID ?? "", "", objAuditApprovedPrescriptionDetails?.ShippingDetails?.Address ?? "", "AuditApprovedPrescription", objAuditApprovedPrescriptionDetails?.NextTask?.DateMedNeeds ??"");
+
+                    InsertAttachments(objAuditApprovedPrescriptionDetails, objAuditApprovedPrescriptionDetails?.ScreenArgs?.TaskID ?? "");
+                }
+            }
+            catch { }
+            return new { ID = "1" };
+        }
+
+        [System.Web.Http.NonAction]
+        public string CheckAAPTask(string TaskId, string MemberId, string Contract, string Speciality, string AuthNo, string UserName,string DateMedsNeeded)
+        {
+            string ShowFrom = string.Empty;
+            try
+            {
+                Dictionary<string, object> args = new Dictionary<string, object>();
+                args.Add("@taskid_in", TaskId ?? "");
+                args.Add("@cMemID", MemberId ?? "");
+                args.Add("@cContract", Contract ?? "");
+                args.Add("@speciality", Speciality ?? "");
+                args.Add("@iAuthNo", AuthNo ?? "");
+                args.Add("@cuser", UserName ?? "");
+                args.Add("@DateMedsNeeded", DateMedsNeeded ?? "");
+                using (DataSet ds = ExecuteDB(SP_CHECK_AUDITAPPROVEDPRESCRIPTION, Contract ?? "", args))
+                    if (ds != null && ds.Tables.Count > 0)
+                    {
+                        if (ds.Tables.Count > 0 && ds.Tables[0].Rows.Count > 0)
+                        {
+                            DataTable dt = ds.Tables[0];
+                            foreach (DataRow dr in dt.Rows)
+                            {
+                                ShowFrom = dr.Value<string>("showForm") ?? "";
+                            }
+                        }
+                    }
+            }
+            catch { }
+            return ShowFrom;
+        }
+
+        [HttpPost]
+        [ValidateFilter, ExceptionFilter]
+        public string InsertAttachments(AuditApprovedPrescriptionDetails objAuditApprovedPrescriptionDetails, string TaskId)
+        {
+            Dictionary<string, object> _args = new Dictionary<string, object>();
+            System.Xml.Linq.XDocument attchitems = new XDocument(new XElement("AttachItems"));
+
+            if (objAuditApprovedPrescriptionDetails.NextTask.Attachments != null)
+            {
+                string result = string.Empty;
+                try
+                {
+                    foreach (var attachItem in objAuditApprovedPrescriptionDetails.NextTask.Attachments)
+                    {
+                    attchitems.Root.Add(new XElement("Item",
+                        new XAttribute("FaxId", attachItem.ID ?? "0"),
+                        new XAttribute("AttachmentPath", attachItem.Tag ?? "")
+                        )
+                        );
+                    }
+                     _args.Add("@TaskId", TaskId ?? "");
+                     _args.Add("@AttachItems", attchitems?.ToString() ?? "");
+               
+                     ExecuteNonQuery(SP_InsertAttachments, objAuditApprovedPrescriptionDetails?.ShippingDetails?.Contract ?? "", _args);
+
+                }
+                catch { }
+                
+                return result;
+            }
+            else
+            {
+                return "";
+            }
+        }
+
+        [NonAction]
+        public void CreatePrescription(string MemberId, string Contract, string Speciality, string AuthNumber, string UserName, string TaskTo,
+            string StartDate, string EndDate, string Subject, string NotesMessage, string CCList, string Priority, string ToUser,
+            string Attachment1, string Attachment2, string Attachment3, string TaskId, string CouponAmount, string Address, string PrescriptionType, string DateMedsNeeded)
+        {
+            try
+            {
+                AuditApprovedPrescriptionDetails objAuditApprovedPrescriptionDetails = ATSParams?.ToJsonObject<AuditApprovedPrescriptionDetails>();
+                Dictionary<string, object> args = new Dictionary<string, object>();
+
+
+                if (PrescriptionType == "ProcessPrescription")
+                {
+                    args.Add("@cMemID", MemberId ?? "");
+                    args.Add("@cContract", Contract ?? "");
+                    args.Add("@cSpeciality", Speciality ?? "");
+                    args.Add("@iAuthNo", AuthNumber ?? "");
+                    args.Add("@cUser", UserName ?? "");
+                    args.Add("@cOwner ", TaskTo ?? "");
+                    args.Add("@dSchStartDate", StartDate ?? DateTime.Now.ToString() ?? "");
+                    args.Add("@dSchEndDate", EndDate ?? DateTime.Now.ToString() ?? "");
+                    args.Add("@cSubject", Subject ?? "");
+                    args.Add("@cMessage", NotesMessage ?? "");
+                    args.Add("@pCCList", CCList ?? "");
+                    args.Add("@cpriority", Priority ?? "");
+                    args.Add("@touser", ToUser ?? "");
+                    args.Add("@Attach1", Attachment1 ?? "");
+                    args.Add("@Attach2", Attachment2 ?? "");
+                    args.Add("@Attach3", Attachment3 ?? "");
+                    args.Add("@taskid_in", TaskId ?? "");
+                    args.Add("@CouponAmount", CouponAmount ?? "");
+                    args.Add("@DateMedsNeeded", DateMedsNeeded ?? "");
+                    ExecuteNonQuery(SP_CREATE_PROCESSPRESCRIPTION, Contract ?? "", args);
+                }
+                else
+                {
+                    args.Add("@MemberID", MemberId ?? "");
+                    args.Add("@Contract", Contract?? "");
+                    args.Add("@Speciality", Speciality?? "");
+                    args.Add("@Authno", AuthNumber?? "");
+                    args.Add("@cuser", UserName?? "");
+                    args.Add("@TaskTo ", TaskTo?? "");
+                    args.Add("@message", NotesMessage ?? "");
+                    args.Add("@Priority", Priority?? "");
+                    args.Add("@AttachmentPath1", Attachment1 ?? "");
+                    args.Add("@AttachmentPath2", Attachment2 ?? "");
+                    args.Add("@AttachmentPath3", Attachment3 ?? "");
+                    args.Add("@AAPTaskID", TaskId ?? "");
+                    args.Add("@DateMedsNeeded", DateMedsNeeded ?? "");
+                    ExecuteNonQuery(SP_UPDATE_AUDITAPPROVEDPRESCRIPTION, Contract ?? "", args);
+                }
+            }
+            catch (Exception ex) { }
+        }
+
+        [HttpPost]
+        [ValidateFilter, ExceptionFilter]
+        public ObjectBase GetLurieVisibility()
+        {
+            ObjectBase GetlurieContract = new ObjectBase();
+            try
+            {
+                RequestBase objTaskScreenArgs = ATSParams?.ToJsonObject<RequestBase>();
+                Dictionary<string, object> args = new Dictionary<string, object>();
+                args.Add("@Contract", objTaskScreenArgs?.Contract ?? "");
+                args.Add("@MemberID", objTaskScreenArgs?.MemberID ?? "");
+                args.Add("@UserName", Utilities.Common.UserName ?? "");
+                using (DataSet ds = ExecuteDB(SP_GetLurieVisibility, "", args))
+                {
+                    if (ds != null && ds.Tables.Count > 0)
+                    {
+                        if (ds.Tables[0].Rows.Count > 0)
+                        {
+                            DataTable row = ds.Tables[0];
+                            foreach (DataRow dr in row?.Rows)
+                            {
+                                GetlurieContract.ID = dr?.Value<string>("LurieVisibility") ?? "";
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex) { }
+
+            return GetlurieContract;
+        }
+        #endregion
+    }
+}

@@ -1,0 +1,19 @@
+CREATE   PROCEDURE USP_GET_FAXENABLED_PHARMACIES_ATS
+    @Contract VARCHAR(100)
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    -- Only for Ally contract
+    IF UPPER(LTRIM(RTRIM(@Contract))) = 'ALLY'
+    BEGIN
+        SELECT DISTINCT 
+               LTRIM(RTRIM(PharmName)) AS PharmacyName
+        FROM   PharmacyMaster          -- change table name if different
+        WHERE  Contract = @Contract
+          AND  CurrSts  = 0            -- active only
+          AND  PharmName IS NOT NULL
+          AND  LTRIM(RTRIM(PharmName)) <> ''
+        ORDER BY PharmacyName;
+    END
+END

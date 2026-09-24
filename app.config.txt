@@ -1,0 +1,195 @@
+<configuration>
+  <configSections>
+    <!-- For more information on Entity Framework configuration, visit http://go.microsoft.com/fwlink/?LinkID=237468 -->
+    <section name="entityFramework" type="System.Data.Entity.Internal.ConfigFile.EntityFrameworkSection, EntityFramework, Version=6.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089" requirePermission="false" />
+  </configSections>
+	
+  <appSettings>
+    <!-- Development Start (kept as comments) -->
+    <add key="SERVICE_URL" value="http://localhost:63575/api/" />
+    <!--<add key="SERVICE_URL" value="http://10.10.20.13/api/" />-->
+    <!-- <add key="CPS_SERVICE_URL" value="http://NewCPSAPI/api/" /> -->
+    <!-- Development End -->
+	  
+    <!-- Production Start -->
+    <!--<add key="SERVICE_URL" value="http://10.10.20.11/api/" />-->
+    <!--<add key="SERVICE_URL" value="http://172.22.20.27/api/" />-->
+     <!--<add key="SERVICE_URL" value="http://newatsapi1/api/" />--> 
+    <add key="CPS_SERVICE_URL" value="http://NewCPSAPI/api/" />
+    <!-- Production End -->
+	  
+    <!-- TeamPay (Dev commented, Prod active) -->
+    <!-- <add key="TeamPayToken" value="MVJQbEtndzRvNkQ4MXRxTUZEeVNyRFlTWmphYmI5c2ZGSEpDVjFvMjphdnlSUFFnNmRrTEk3ODNOZXdBbWdSUWFZRWg3MEphWnNzQ2JoV2hoa0V5OEpObURTbGVFR2VrdnBSdE1wMTVocDhkc2xndm01Vkw3Znk0aDFDWXFKSmROdkNmNXlwMWRPMVE4aDM2eEtTdlZUZVpCOWFzVlBmVmtJZXdaWTlGMQ==" /> -->
+    <!-- <add key="TeamPay_AccessToken_URL" value="https://demo.teampayhq.com/public/api/v1/oauth2/token/" /> -->
+    <!-- <add key="TeamPay_PurchaseRequest_URL" value="https://demo.teampayhq.com/public/api/v1/external-partner/purchase-request/" /> -->
+	  
+    <add key="TeamPayToken" value="NGRTVXBiYTVvN0Q4MnRibW5EeFNyRHNzWmphYmI5c2ZmaEpDVjFvMjpOQW1qcHNQOXNLYUkyMjFOYXlBbWdSUWFZRWg3MEphWnNzQ2JoV2hoa0V5OEpObURTbGVFR2VrdnBSdE1wMjJocDhkc2xndm0xVkw3Znk0aDFDWXFKSmROdkNmOXlwMWRPMVEyaDM2eEtTdlZUZVpCOWFzVlBmVmtJZXdaWTlGMQ==" />
+    <add key="TeamPay_AccessToken_URL" value="https://app.teampay.co/public/api/v1/oauth2/token/" />
+    <add key="TeamPay_PurchaseRequest_URL" value="https://app.teampay.co/public/api/v1/external-partner/purchase-request/" />
+    <add key="TeamPayApproveURL" value="https://app.teampay.co/public/api/v1/external-partner/purchase-request/decide/?external_requestor_id=" />
+	  
+    <!-- Main Start -->
+    <!-- Application Mode -->
+    <add key="ApplicationMode" value="Main" />
+    <add key="FaxPath" value="\\WINH\\ZFAXOUT\\" />
+    <add key="FaxPath3" value="\\WINHVfax3\\ZFAXOUT\\" />
+    <!-- <add key="FaxPath3" value="\\WINH\\ZFAXOUT\\" /> -->
+    <!-- <add key="VersionType" value="DTC Version" /> -->
+    <!-- <add key="VersionType" value="Training Version" /> -->
+    <!-- <add key="VersionType" value="ANTView Version" /> -->
+    <!-- Main End -->
+	  
+    <!-- External URLs -->
+    <add key="RPA_SERVER_URL" value="http://providersearchbotapi/API/" />
+    <add key="DOCU_SIGN_URL" value="https://www.winfertilityprovider.com/DigitalSignature/Docusign" />
+    <add key="PHYSICIAN_PORTAL_URL" value="https://www.winfertilityprovider.com/Home/Index" />
+    <add key="ANTHEM_PHYSICIAN_PORATL_URL" value="https://www.winfertilityprovider.com/Anthem/Home/Index" />
+    <add key="BCBSRI_PHYSICIAN_PORATL_URL" value="https://www.winfertilityprovider.com/Anthem/Home/Index" />
+    <add key="PATIENT_PORTAL" value="https://www.winfertilitypatient.com/patientconsent/" />
+    <add key="PREMIER_PHYSICIAN_PORATL_URL" value="https://www.winfertilityprovider.com/premier/Home/Index" />
+    <add key="PREMIER_PROVIDER_SEARCH" value="https://www.winfertilitypatient.com/PatientConsent/home/findprovider?Flag=WCW93/vDnCCXKlTEBhlomg==" />
+    <add key="SELF_SERVICE_URL" value="https://www.winfertilityprovider.com/Anthem/home/View_Form" />
+    <add key="Demo_SERVICE_URL" value="https://www.winfertilityprovider.com/Anthem/Home/EditSmart_Form" />
+    <add key="ELIG_VERIFIY_URL" value="https://www.winfertilityclient.com/EligibilityVerification/Index" />
+    <add key="SEND_ELIG_VERIFIY_URL" value="https://www.winfertilityclient.com/verificationqueue/Index" />
+    <add key="ACCUM_Details_URL" value="https://www.winfertilityclient.com/AccumDetails/Index" />
+    <add key="Availity_URL" value="http://trackerapp.winfertility.com/api/MemberCoverages/AvailityMemberCoverages?_Params=" />
+    <add key="MOBILE_API_SERVICE_URL" value="http://trackerapp.winfertility.com/api/" />
+    <add key="Availity_Claim_URL" value="http://trackerapp.winfertility.com/api/MemberClaimsstatus/AvailityClaimStatus?ClaimID=" />
+    <add key="Bastion_Quentionare" value="https://production-partner-enrollment-6tryuawqya-ue.a.run.app/nurse-partner-signup/win" />
+    <add key="Embed_Inquiry" value="https://app.smartsheet.com/b/form/019abc551fab70b1921c9c8e827e4ce1" />
+    <add key="Mirvie_Portal" value="https://www.WINPatientPortal.com" />
+    <add key="Appeals_URL" value="http://10.50.20.229:3019" />
+    <add key="Network_Enquiry" value="https://app.smartsheet.com/b/form/e1104bce7f9042a086fa5eb6a21247c6" />
+    <add key="WIN_PREMIER_PROVIDER_SEARCH" value="https://winpatientportal.com/load-findcare-list?"/>
+	  
+    <add key="Temp_ExcelPath" value="\\winh\productionpaths\ATS\DenialLogReport" />
+    <add key="TEMP_BUS_PATH" value="\\Winh\Productionpaths\ATS\TempFolderForNEWATS\BUS" />
+    <add key="TEMP_ELIGIBILITY_VERIFICATION_PATH" value="\\Winh\Productionpaths\ATS\TempFolderForNEWATS\EligibilityVerication" />
+    <add key="TEMP_VIEW_DOCUMENTS_PATH" value="\\Winh\Productionpaths\ATS\TempFolderForNEWATS\ViewDocument" />
+    <add key="TEMP_COVER_FAXES_PATH" value="\\Winh\Productionpaths\ATS\TempFolderForNEWATS\CoverFaxes" />
+    <add key="TEMP_SAVE_DOC_PATH" value="\\Winh\Productionpaths\ATS\TempFolderForNEWATS\SaveDocument" />
+    <add key="TEMP_LOGO_PATH" value="\\winh\newatstemplates\Contract Logos" />
+	  
+    <!-- Local temp override for letters -->
+    <!-- <add key="TEMP_LETTERS_PATH" value="\\Winh\Productionpaths\ATS\TempFolderForNEWATS\Letters" /> -->
+    <!-- <add key="TEMP_OON_LETTERS_PATH" value="\\Winh\Productionpaths\ATS\TempFolderForNEWATS\OONSecureEmailLetters" /> -->
+    <!--<add key="TEMP_LETTERS_PATH1" value="%SystemDrive%\Users" />-->
+    <add key="TEMP_LETTERS_PATH" value="C:\TempFolderForNEWATS\Letters" />
+    <add key="TEMP_OON_LETTERS_PATH" value="C:\TempFolderForNEWATS\OONSecureEmailLetters" />
+	  
+    <!-- Print / Storage paths -->
+    <!-- <add key="PRINT_LETTERS_PATH" value="\\Winh\Productionpaths\ATS\PhysicalLetterTestingPath" /> -->
+    <add key="PRINT_LETTERS_PATH" value="\\winh\02clients\CURRENT CLIENTS" />
+	  
+    <add key="USER_STATUS_PATH" value="\\Winh\Productionpaths\ATS\NEW ATS USER STATUS\" />
+    <add key="RPA_SHARED_DOWNLOADS" value="\\Winh\Productionpaths\ATS\RPASharedFiles" />
+    <!-- <add key="DocuSign_DocPath" value="\\Winh\Productionpaths\CPS\ClaimsManagement\Reference Documents\Patient Reimbursement Docs" /> -->
+    <add key="CPS_Templates" value="\\Winh\Productionpaths\CPS\ClaimsManagement\Reference Documents\Templates" />
+    <add key="BROWSER_TEMP" value="\\Winh\Productionpaths\ATS\TempFolderForApplication\TempScreenshots\" />
+    <add key="CONTRACT_LOGO_PATH" value="\\Winh\Productionpaths\ATS\Contract Logos\" />
+    <add key="REPORT_DOC_PATH" value="\\Winh\Productionpaths\ATS\Report Documents\" />
+    <add key="CHAT_VIDEO_URL" value="\\Winh\Productionpaths\ATS\WINMedias\5B0CCEBD-35F2-43D9-A9C9-04718EC38296\FINAL.MP4" />
+    <add key="CONTRACTSPEC_INFO" value="\\Winh\Productionpaths\ATS\InfoCenter Documents\ContractSpecificationsDocuments\ContractSpecs\" />
+    <add key="COMMON_PB_INFO" value="\\Winh\Productionpaths\ATS\InfoCenter Documents\PatientBenefitsDocuments\CommonPB_WS_QV\" />
+    <add key="UPLOAD_DOC_PATH" value="\\Winh\Productionpaths\ATS\TempFolderForNEWATS\Upload Documents" />
+    <add key="FAX_UPLOAD_DOC_PATH" value="\\winh\productionpaths\ATS\TempFolderForNEWATS\Fax Upload Documents\" />
+    <add key="BOEING_DOC_PATH" value="\\winh\productionpaths\ATS\TempFolderForNEWATS\Boeing Documents" />
+    <add key="TRAINING_DOCUMENT_PATH" value="\\winh\productionpaths\ATS\NEW ATS Training Videos 2020\Care Manager Training Documents" />
+    <add key="CSA_TRAINING_DOCUMENTS_PATH" value="\\winh\productionpaths\ATS\CSA Training Documents\" />
+    <add key="NotesFileName" value="\\Winh\Productionpaths\ATS\TempFolderForNEWATS\Notes\" />
+    <add key="RingTheDoorbell" value="\\Winh\Productionpaths\ATS\TempFolderForNEWATS\Ring The Doorbell" />
+    <add key="InfocenterPDF" value="\\winh\productionpaths\ATS\TempFolderForNEWATS\InfoCenter" />
+    <add key="BASE_FOLDER_PATH" value="\\winh\newatstemplates\WINSS\" />
+    <add key="BACKUP_FOLDER_PATH" value="\\winh\productionpaths\WINSSDocsBackUp\" />
+	  
+    <!-- Fax Numbers / Logos -->
+    <add key="FAX_NUMBER" value="8663104139" />
+    <add key="FAX_NUMBER_HMOI" value="8773694560" />
+    <add key="FAX_NUMBER_POSTERITYHEALTH" value="8773694560" />
+    <add key="FAX_NUMBER_CVS" value="8663104139" />
+	<add key="FAX_NUMBER_ALEXANDERTWIN" value="6094824842" />
+    <add key="FAX_NUMBER_ALTO" value="4154847058" /> 
+    <add key="FAX_NUMBER_AMBER" value="4028963774" />
+    <add key="FAX_NUMBER_APRI" value="8882396337" />
+    <add key="FAX_NUMBER_APTHORP" value="8778466031" />
+    <add key="FAX_NUMBER_DOBBSFERRY" value="8007300246" />
+    <add key="FAX_NUMBER_FERTILITYPHARMACY" value="8443570573" />
+    <add key="FAX_NUMBER_FREEDOM" value="8886604283" />
+    <add key="FAX_NUMBER_GENOA" value="4029328711" />
+    <add key="FAX_NUMBER_HANNS" value="7035926934" />
+    <add key="FAX_NUMBER_HEALTHDYNE" value="8005308589" />
+    <add key="FAX_NUMBER_INTEGRITY" value="8003219931" />
+    <add key="FAX_NUMBER_MANDELLS" value="8772520450" />
+    <add key="FAX_NUMBER_MDR" value="8889392020" />
+    <add key="FAX_NUMBER_OMAHA" value="4029328711" />
+    <add key="FAX_NUMBER_PRIMA" value="7182300596" />
+    <add key="FAX_NUMBER_SANDSRX" value="8553859990" />
+    <add key="FAX_NUMBER_SMP" value="8554476637" />
+    <add key="FAX_NUMBER_VILLAGE" value="8773341602" />
+    <add key="Win_Logo" value="\\winh\newatstemplates\Contract Logos\WINFertilityNew.png" />
+    <add key="NEWWin_Logo" value="\\winh\newatstemplates\Contract Logos\NEWWINFertilityLogo.png" />
+    <add key="FertilityFamBuildingLogo" value="\\winh\newatstemplates\Contract Logos\FertilityFamBuildLogo.png" />
+    <add key="POSTERITY_HEALTH_DOC_PATH" value="\\winh\newatstemplates\FAX\EmployersEmailForms\Posterity Health Enrollment.docx" />
+    <add key="TEMP_POSTERITY_HEALTH_DOC_PATH" value="\\winh\productionpaths\ATS\TempFolderForNEWATS\Posterity Patient Enrollment\" />
+	  
+    <!-- Misc App Settings -->
+    <add key="IDLE_MINUTES" value="12" />
+    <add key="EMailFrom" value="EncryptAuth@winfertility.com" />
+    <add key="EMailTo" value="TPandey@winfertility.com" />
+    <add key="EMailCC" value="ManiHT@winfertility.com" />
+    <add key="EMailBCC" value="Nagarajug@winfertility.com" />
+    <add key="InteropPDFdll_Servers" value="WINHVDEVWS6969" />
+    <add key="ApplicationAccess" value="WINHAPPDEV,WINHVAPPDEV,VT-SERVER,WINHVDEVWS3,WINHVDEVWS4,WINHVDEVWS10,WINHVDEVWS5,WINHVDEVWS6,WINHVDEVWS9,WINHVAPPDEV1,WINHAPPPROD-DTC,WINHAPPPROD6,WINHAPPPROD7,WINHAPPPROD8,WINHAPPPROD9,WINHAPPPROD10,WINH-HZNRDS1,WINH-HZNRDS2,WINH-HZNRDS3,WINH-HZNRDS4,WINH-HZNRDS5,WINH-HZNRDS6,WINH-HZNRDS7,WINH-HZNRDS8,WINH-HZNRDS9,WINH-HZNRDS10,WINH-HZNRDS11,WINH-HZNRDS12,WINH-HZNRDS13,WINH-HZNRDS14,WINH-HZNRDS21,WINH-HZNRDS22,WINH-HZNRDS23,WINH-HZNRDS24,WINH-HZNRDS25,WINH-HZNRDS26,WINH-HZNRDS27,WINH-HZNRDS28,WINH-HZNRDS29,WINCLHZNRDS1,WINCLHZNRDS2,WINCLHZNRDS3,WINHAPPDEV2" />
+    <add key="MemberCallSummary" value="MOCA,EMCA,BOCA,MJCA" />
+    <add key="ClientSettingsProvider.ServiceUri" value="" />
+    <add key="PaginationCount" value="50" />
+	  
+    <!-- API timing log configuration -->
+    <!-- Comma/semicolon/pipe separated list of usernames for which API timing should be logged -->
+    <!--<add key="ApiLogUsers" value="NagarajuG,GNDV,tRadha,TEDV,NilaA,NLDV,NagashreeP,NPDV,ISLakshmi,ISDV,DHariPriya,HPDV,GSumanth,VSDV,GSurabhi,GSDV,TabasumG,TGDV,VRodriguez,VRCA,ldeacon,LACA,MMartino,MDRN,JMissildine,JDRN" />-->
+    <add key="ApiLogUsers" value="" />
+    <!-- Base network folder for per-user logs -->
+    <add key="ApiLogBasePath" value="\\winh\productionpaths\ATS-LOGS" />
+  </appSettings>
+	
+  <startup>
+    <supportedRuntime version="v4.0" sku=".NETFramework,Version=v4.5.2" />
+  </startup>
+	
+  <runtime>
+    <assemblyBinding xmlns="urn:schemas-microsoft-com:asm.v1">
+      <dependentAssembly>
+        <assemblyIdentity name="System.Windows.Interactivity" publicKeyToken="31bf3856ad364e35" culture="neutral" />
+        <bindingRedirect oldVersion="0.0.0.0-4.5.0.0" newVersion="4.5.0.0" />
+      </dependentAssembly>
+      <dependentAssembly>
+        <assemblyIdentity name="Newtonsoft.Json" publicKeyToken="30ad4fe6b2a6aeed" culture="neutral" />
+        <bindingRedirect oldVersion="0.0.0.0-11.0.0.0" newVersion="11.0.0.0" />
+      </dependentAssembly>
+      <dependentAssembly>
+        <assemblyIdentity name="WebGrease" publicKeyToken="31bf3856ad364e35" culture="neutral" />
+        <bindingRedirect oldVersion="0.0.0.0-1.5.2.14234" newVersion="1.5.2.14234" />
+      </dependentAssembly>
+    </assemblyBinding>
+  </runtime>
+	
+  <system.web>
+    <membership defaultProvider="ClientAuthenticationMembershipProvider">
+      <providers>
+        <add name="ClientAuthenticationMembershipProvider" type="System.Web.ClientServices.Providers.ClientFormsAuthenticationMembershipProvider, System.Web.Extensions, Version=4.0.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35" serviceUri="" />
+      </providers>
+    </membership>
+    <roleManager defaultProvider="ClientRoleProvider" enabled="true">
+      <providers>
+        <add name="ClientRoleProvider" type="System.Web.ClientServices.Providers.ClientRoleProvider, System.Web.Extensions, Version=4.0.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35" serviceUri="" cacheTimeout="86400" />
+      </providers>
+    </roleManager>
+  </system.web>
+	
+  <entityFramework>
+    <providers>
+      <provider invariantName="System.Data.SqlClient" type="System.Data.Entity.SqlServer.SqlProviderServices, EntityFramework.SqlServer" />
+    </providers>
+  </entityFramework>
+</configuration>

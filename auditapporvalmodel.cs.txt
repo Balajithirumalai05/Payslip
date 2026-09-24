@@ -1,0 +1,12 @@
+using WinDTO.Tasks;
+
+namespace DynamicATS.Model
+{
+    public class AuditApprovalTaskModel : TaskBaseModel<AuditApprovedPrescriptionDetails>
+    {
+        public AuditApprovalTaskModel() :
+        base("AuditApprovedPrescription/Save", "AuditApprovedPrescription/GetData")
+        { }
+
+    }
+}
