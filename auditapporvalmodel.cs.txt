@@ -8,5 +8,9 @@ namespace DynamicATS.Model
         base("AuditApprovedPrescription/Save", "AuditApprovedPrescription/GetData")
         { }
 
+        public System.Collections.Generic.List<string> GetFaxEnabledPharmacies(string contract)
+        {
+            return base.Get<System.Collections.Generic.List<string>>($"AuditApprovedPrescription/GetFaxEnabledPharmacies?contract={contract}");
+        }
     }
 }
