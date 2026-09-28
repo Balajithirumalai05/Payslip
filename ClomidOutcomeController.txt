@@ -453,11 +453,7 @@ namespace WINApi.Controllers
             {
             }
             OutcomeController objOutcomeController = new OutcomeController();
-            if (isRn && isSnr &&
-                string.Equals(
-                    objClomid?.ServiceData?.OutcomeStatus,
-                    "Nurse Certified",
-                    StringComparison.OrdinalIgnoreCase))
+            if (isRn && isSnr && string.Equals(objClomid?.ServiceData?.OutcomeStatus,"Nurse Certified",StringComparison.OrdinalIgnoreCase))
             {
                 LatestOutPatientID = objOutcomeController.GetLatestOutPatientId(objClomid?.ScreenArgs?.MemberID ?? "", objClomid?.ScreenArgs?.Contract ?? "",
                     objClomid?.TaskDetails?.Speciality ?? "", objClomid?.ServiceData?.InitialCPTCode ?? "", objClomid?.ScreenArgs?.AuthNumber ?? "",
@@ -649,17 +645,9 @@ namespace WINApi.Controllers
                 }
             }
 
-
-
-            objOutcomeController.SaveStatus(
-    objClomid?.ScreenArgs?.MemberID ?? "",
-    objClomid?.ScreenArgs?.AuthNumber ?? "",
-    outcomeStatusToSave,
-    outcomeStatusToSave,
-    objClomid?.ServiceData?.AdjudicatedService ?? "",
-    AdjudicatedCost ?? "",
-    objClomid?.ScreenArgs?.UserName ?? "",
-    objClomid?.ScreenArgs?.Contract ?? "");
+objOutcomeController.SaveStatus(objClomid?.ScreenArgs?.MemberID ?? "", objClomid?.ScreenArgs?.AuthNumber ?? "",
+    outcomeStatusToSave,outcomeStatusToSave,
+    objClomid?.ServiceData?.AdjudicatedService ?? "", AdjudicatedCost ?? "", objClomid?.ScreenArgs?.UserName ?? "", objClomid?.ScreenArgs?.Contract ?? "");
 
             ///* --- Save Outcome Received -- */
             //objOutcomeController.SaveReceived(objClomid.ScreenArgs.Contract, objClomid.ScreenArgs.UserName, objClomid.ScreenArgs.AuthNumber,
@@ -708,55 +696,31 @@ namespace WINApi.Controllers
                          "Nurse Certified",
                          StringComparison.OrdinalIgnoreCase))
             {
-                objTaskController.Complete(
-                    "1",
-                    objClomid?.ScreenArgs?.TaskID ?? "",
-                    objClomid?.NextTask?.Notes ?? "",
-                    objClomid?.ScreenArgs?.UserName ?? "",
-                    objClomid?.ScreenArgs?.Contract ?? "");
+                objTaskController.Complete("1", objClomid?.ScreenArgs?.TaskID ?? "", objClomid?.NextTask?.Notes ?? "", objClomid?.ScreenArgs?.UserName ?? "",
+objClomid?.ScreenArgs?.Contract ?? "");
             }
             /*
              * Existing behavior for all other outcomes.
              */
             else if (objClomid.ScreenArgs.TaskName == objClomid.NextTask.Task.TaskName)
             {
-                objTaskController.Edit(
-                    objClomid?.ScreenArgs?.TaskID ?? "",
-                    objClomid?.ScreenArgs?.UserName ?? "",
-                    objClomid?.NextTask?.Notes ?? "",
-                    objClomid?.NextTask?.Task?.SendToQueue?.Text ?? "",
-                    objClomid?.NextTask?.Task?.Priority ?? "",
-                    DateTime.Now.ToString(),
-                    objClomid?.ScreenArgs?.Contract ?? "");
+                objTaskController.Edit(objClomid?.ScreenArgs?.TaskID ?? "", objClomid?.ScreenArgs?.UserName ?? "", objClomid?.NextTask?.Notes ?? "",
+                    objClomid?.NextTask?.Task?.SendToQueue?.Text ?? "", objClomid?.NextTask?.Task?.Priority ?? "", DateTime.Now.ToString(), objClomid?.ScreenArgs?.Contract ?? "");
             }
             else if (objClomid.ScreenArgs.TaskName != objClomid.NextTask.Task.TaskName)
             {
-                objTaskController.Complete(
-                    "1",
-                    objClomid?.ScreenArgs?.TaskID ?? "",
-                    objClomid?.NextTask?.Notes ?? "",
-                    objClomid?.ScreenArgs?.UserName ?? "",
+                /* --- Complete Task -- */
+                objTaskController.Complete("1", objClomid?.ScreenArgs?.TaskID ?? "", objClomid?.NextTask?.Notes ?? "", objClomid?.ScreenArgs?.UserName ?? "",
                     objClomid?.ScreenArgs?.Contract ?? "");
 
-                if (!string.IsNullOrWhiteSpace(
-                    objClomid?.NextTask?.Task?.TaskName ?? ""))
+                /* --- Create Task -- */
+                if (!string.IsNullOrWhiteSpace((objClomid?.NextTask?.Task?.TaskName ?? "")))
                 {
-                    objTaskController.Create(
-                        objClomid?.ScreenArgs?.Contract ?? "",
-                        objClomid?.TaskDetails?.Speciality ?? "",
-                        objClomid?.ScreenArgs?.MemberID ?? "",
-                        objClomid?.ScreenArgs?.UserName ?? "",
-                        objClomid?.NextTask?.Task?.TaskName ?? "",
-                        objClomid?.NextTask?.Task?.SendToQueue?.Text ?? "",
-                        objClomid?.ScreenArgs?.AuthNumber ?? "",
-                        "",
-                        objClomid?.NextTask?.Notes ?? "",
-                        objClomid?.NextTask?.Task?.Priority ?? "",
-                        "");
+                    objTaskController.Create(objClomid?.ScreenArgs?.Contract ?? "", objClomid?.TaskDetails?.Speciality ?? "", objClomid?.ScreenArgs?.MemberID ?? "",
+                        objClomid?.ScreenArgs?.UserName ?? "", objClomid?.NextTask?.Task?.TaskName ?? "", objClomid?.NextTask?.Task?.SendToQueue?.Text ?? "",
+                        objClomid?.ScreenArgs?.AuthNumber ?? "", "", objClomid?.NextTask?.Notes ?? "", objClomid?.NextTask?.Task?.Priority ?? "", "");
                 }
             }
-
-
             if ((objClomid.ScreenArgs.UserRole == "RN") && (objClomid.ServiceData.OutcomeStatus == "Pending Clinical Review"))
             {
                 string sTaskId = objTaskController.Create(objClomid?.ScreenArgs?.Contract ?? "", objClomid?.TaskDetails?.Speciality ?? "", objClomid?.ScreenArgs?.MemberID ?? "",
@@ -774,19 +738,10 @@ namespace WINApi.Controllers
 
             if (objClomid.ScreenArgs.UserRole == "CSA") { objClomid.TaskDetails.WorkflowStep = "Outcome Setup"; }
             else { objClomid.TaskDetails.WorkflowStep = "Outcome Review"; }
-            objOutcomeController.UpdateWorkFlowStatus(
-    objClomid?.ScreenArgs?.AuthNumber ?? "",
-    objClomid?.TaskDetails?.WorkflowStep ?? "",
-    outcomeStatusToSave,
-    Reasons ?? "",
-    LatestOutPatientID ?? "",
-    objClomid?.ScreenArgs?.UserName ?? "",
-    objClomid?.ScreenArgs?.Contract ?? "",
-    objClomid?.ScreenArgs?.TaskName ?? "",
-    outcomeStatusToSave,
-    objClomid?.ScreenArgs?.UserRole ?? "",
-    objClomid?.NextTask?.Task?.TaskName ?? "",
-    SelectedCptcode ?? "");
+            objOutcomeController.UpdateWorkFlowStatus(objClomid?.ScreenArgs?.AuthNumber ?? "", objClomid?.TaskDetails?.WorkflowStep ?? "",
+    outcomeStatusToSave,Reasons ?? "",
+    LatestOutPatientID ?? "", objClomid?.ScreenArgs?.UserName ?? "", objClomid?.ScreenArgs?.Contract ?? "",
+    objClomid?.ScreenArgs?.TaskName ?? "",outcomeStatusToSave, objClomid?.ScreenArgs?.UserRole ?? "", objClomid?.NextTask?.Task?.TaskName ?? "", SelectedCptcode ?? "");
             /* --- Save Outcome Received -- */
             if (isRn && isSnr)
             {
