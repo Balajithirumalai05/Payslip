@@ -126,8 +126,8 @@ namespace WINApi.Controllers
                         if (objTaskScreenArgs.UserRole == "CSA") { objTaskScreenArgs.TaskName = "Enter Outcome"; }
                         if (objTaskScreenArgs.UserRole == "RN") { objTaskScreenArgs.TaskName = "Certify Outcome"; }
                         /* --- Create Task -- */
-                        objTaskScreenArgs.TaskID = objTaskController.Create(objTaskScreenArgs.Contract ?? "", "Infertility", objTaskScreenArgs.MemberID ?? "", objTaskScreenArgs.UserName ?? "",
-                            objTaskScreenArgs.TaskName ?? "", "My Personal Queue", objTaskScreenArgs.AuthNumber ?? "", "C", "", "Medium", "");
+                        //objTaskScreenArgs.TaskID = objTaskController.Create(objTaskScreenArgs.Contract ?? "", "Infertility", objTaskScreenArgs.MemberID ?? "", objTaskScreenArgs.UserName ?? "",
+                        //    objTaskScreenArgs.TaskName ?? "", "My Personal Queue", objTaskScreenArgs.AuthNumber ?? "", "C", "", "Medium", "");
                     }
                     else
                     {
@@ -553,8 +553,7 @@ namespace WINApi.Controllers
 
 
                     }
-                }
-                ;
+                };
                 return objPremier;
             }
 
@@ -572,7 +571,7 @@ namespace WINApi.Controllers
         public object Save()
         {
             Premier objPremier = new Premier(); // reset first
-            objPremier = JsonConvert.DeserializeObject<Premier>(ATSParams ?? "{}");
+            objPremier =JsonConvert.DeserializeObject<Premier>(ATSParams ?? "{}");
             //Premier objPremier = ATSParams?.ToJsonObject<Premier>();
             Dictionary<string, object> args = new Dictionary<string, object>();
 
@@ -622,9 +621,9 @@ namespace WINApi.Controllers
                     "Nurse Certified",
                     StringComparison.OrdinalIgnoreCase))
             {
-                LatestOutPatientID = objOutcomeController.GetLatestOutPatientId(objPremier.ScreenArgs.MemberID ?? "", objPremier.ScreenArgs.Contract ?? "",
+                LatestOutPatientID = objOutcomeController.GetLatestOutPatientId(objPremier.ScreenArgs.MemberID ??"", objPremier.ScreenArgs.Contract ?? "",
                 objPremier.TaskDetails.Speciality ?? "", objPremier.ServiceData.InitialCPTCode ?? "", objPremier.ScreenArgs.AuthNumber ?? "",
-                objPremier.ScreenArgs.OutPatientID ?? "", SelectedCptcode ?? "", CancelReason ?? "",
+                objPremier.ScreenArgs.OutPatientID ?? "", SelectedCptcode ?? "" , CancelReason ?? "",
                 objPremier.ScreenArgs.UserName, objPremier.ServiceData.OldOutPatientID ?? "");
             }
             /* ---  header section  --- */
@@ -781,7 +780,7 @@ namespace WINApi.Controllers
             if (string.IsNullOrWhiteSpace(objPremier.GnRHDosage) == false)
             {
                 objOutcomeController.SaveRx(objPremier.ScreenArgs.AuthNumber ?? "", objPremier.ScreenArgs.MemberID ?? "", "Repronex",
-                    objPremier.GnRHDosage ?? "", objPremier.GnRHDosageDays ?? "", objPremier.GonodotropinStartDate ?? "", objPremier.GonodotropinCancelledDate ?? "",
+                    objPremier.GnRHDosage ?? "", objPremier.GnRHDosageDays ?? "", objPremier.GonodotropinStartDate ?? "", objPremier.GonodotropinCancelledDate ??"",
                     "", "", objPremier.GnRHDosage ?? "", "", objPremier.ScreenArgs.Contract ?? "");
             }
             if (string.IsNullOrWhiteSpace(objPremier.LHDosage) == false)
@@ -873,7 +872,7 @@ namespace WINApi.Controllers
 
             if (objPremier.ServiceData.CPTCode != null && (objPremier.ServiceData.CPTCode != "SNR" && objPremier.ServiceData.AdjudicatedService != "SNR"))
             {
-                if (string.Equals(objPremier.ServiceData.OutcomeStatus, "NURSE CERTIFIED", StringComparison.OrdinalIgnoreCase))
+                if (string.Equals(objPremier.ServiceData.OutcomeStatus,"NURSE CERTIFIED",StringComparison.OrdinalIgnoreCase))
                 {
                     if (string.IsNullOrEmpty(ReasonId)) { ReasonId = "6"; } //Outcome Block in Accumulator}
 
@@ -903,7 +902,7 @@ namespace WINApi.Controllers
                     try
                     {
                         PremierAuthController PreAuthController = new PremierAuthController();
-                        var PreAuthDetails = PreAuthController.SaveNurseCertifiedServiceCostDetails(objPremier.ScreenArgs.Contract ?? "", objPremier.ScreenArgs.FormattedAuthNumber ?? "", "");
+                        var PreAuthDetails= PreAuthController.SaveNurseCertifiedServiceCostDetails(objPremier.ScreenArgs.Contract ?? "", objPremier.ScreenArgs.FormattedAuthNumber ?? "","");
 
                         ObjectBase premierNurseCertifiedinput = new ObjectBase()
                         {
@@ -914,9 +913,9 @@ namespace WINApi.Controllers
                             Additional = PreAuthDetails.Tag.ToString() ?? "",  //with Additional Code cost
                             Role = PreAuthDetails.ObjectTag.ToString() ?? "",
                             LoginId = ReasonId ?? "6",//"6", //Outcome Block in Accumulator
-                            FirstName = objPremier.ScreenArgs.ContractID,  //Contract Id
-                            Additional1 = objPremier.ServiceData.CPTCode ?? "", // Selected CPTCode
-                            Additional2 = objPremier.ServiceData.InitialCPTCode ?? "", // Auth CPTCode
+                            FirstName = objPremier.ScreenArgs.ContractID ,  //Contract Id
+                            Additional1= objPremier.ServiceData.CPTCode ?? "", // Selected CPTCode
+                            Additional2= objPremier.ServiceData.InitialCPTCode ?? "", // Auth CPTCode
                             ObjectTag = objPremier.ScreenArgs.TaskID ?? "",//TaskID
                             UserName = objPremier.ScreenArgs.UserName ?? "" // UserName
 
@@ -1068,18 +1067,11 @@ namespace WINApi.Controllers
             {
                 try
                 {
-                    objTaskController.Complete(
-                        "1",
-                        objPremier?.ScreenArgs?.TaskID ?? "",
-                        objPremier?.NextTask?.Notes ?? "",
-                        objPremier?.ScreenArgs?.UserName ?? "",
-                        objPremier?.ScreenArgs?.Contract ?? "");
+                    objTaskController.Complete("1", objPremier.ScreenArgs.TaskID ??"", objPremier.NextTask.Notes ?? "", objPremier.ScreenArgs.UserName ?? "",
+                        objPremier.ScreenArgs.Contract ?? "");
                 }
                 catch { }
             }
-            /*
-             * Existing behavior for all other outcomes.
-             */
             else if (objPremier.ScreenArgs.TaskName == objPremier.NextTask.Task.TaskName)
             {
                 try
@@ -1119,7 +1111,7 @@ namespace WINApi.Controllers
                         objTaskController.Complete("1", objPremier.ScreenArgs.TaskID ?? "", objPremier.NextTask.Notes ?? "", objPremier.ScreenArgs.UserName,
        objPremier.ScreenArgs.Contract ?? "");
 
-                        if (objPremier?.ServiceData?.OutcomeStatus != "Nurse Certified")
+                        if(objPremier?.ServiceData?.OutcomeStatus != "Nurse Certified")
                         {
                             sTaskId = objTaskController.Create(objPremier.ScreenArgs.Contract ?? "", objPremier.TaskDetails.Speciality ?? "", objPremier.ScreenArgs.MemberID ?? "",
        objPremier.ScreenArgs.UserName ?? "", "Certify Outcome", objPremier.NextTask.Task.SendToQueue.Text ?? "",
@@ -1421,7 +1413,7 @@ namespace WINApi.Controllers
                     Savecostsharedetails(objPremier);
                 }
             }
-            catch (Exception ex)
+            catch(Exception ex)
             {
             }
             return "1";
@@ -1456,14 +1448,13 @@ namespace WINApi.Controllers
                 ExecuteNonQuery(SP_SaveNurseCertifiedAccumulatorDetails, objPremier.Tag, args);
                 try
                 {
-                    if (Costsharevalidation == false)
+                    if(Costsharevalidation == false)
                     {
                         Costsharevalidation = true;
 
                         Savecostsharedetails(objPremier);
                     }
-                }
-                catch { }
+                } catch { }
             }
             catch (Exception ex)
             {
@@ -1653,7 +1644,7 @@ namespace WINApi.Controllers
 
             /* ---  Save Infertility Reason  --- */
 
-            if (objPremier.InfertilityReasons.Count > 0 || objPremier.DiagnosisOtherNotes != null)
+            if (objPremier.InfertilityReasons.Count > 0 ||objPremier.DiagnosisOtherNotes!=null)
             {
                 try
                 {
@@ -1703,7 +1694,7 @@ namespace WINApi.Controllers
 
             if (objPremier.ServiceData.CPTCode != null && (objPremier.ServiceData.CPTCode != "SNR" && objPremier.ServiceData.AdjudicatedService != "SNR"))
             {
-                if (string.Equals(objPremier.ServiceData.OutcomeStatus, "NURSE CERTIFIED", StringComparison.OrdinalIgnoreCase))
+                if (string.Equals(objPremier.ServiceData.OutcomeStatus,"NURSE CERTIFIED",StringComparison.OrdinalIgnoreCase))
                 {
                     if (string.IsNullOrEmpty(ReasonId)) { ReasonId = "6"; }  //Outcome Block in Accumulator
                     ObjectBase premierinput1 = new ObjectBase()
@@ -1809,7 +1800,7 @@ namespace WINApi.Controllers
             if ((objPremier.ScreenArgs.UserRole != "RN") && SelectedCptcode == "SNR")
             {
                 objTaskController.Complete("1", objPremier.ScreenArgs.TaskID ?? "", objPremier.NextTask.Notes ?? "", objPremier.ScreenArgs.UserName ?? "",
-                    objPremier.ScreenArgs.Contract ?? "");
+                    objPremier.ScreenArgs.Contract ??"");
             }
             else if (objPremier.ScreenArgs.TaskName == objPremier.NextTask.Task.TaskName)
             {
@@ -1886,7 +1877,7 @@ namespace WINApi.Controllers
          objPremier.ScreenArgs.Contract ?? "");
                     }
                 }
-                catch (Exception ex)
+                catch(Exception ex)
                 {
 
                 }
@@ -2248,7 +2239,7 @@ namespace WINApi.Controllers
                             DataTable dt = ds.Tables[0];
                             foreach (DataRow dr in dt.Rows)
                             {
-                                Result = (dr.Value<string>("ReasonID") ?? "");
+                                Result=(dr.Value<string>("ReasonID") ?? "");
                             }
                         }
                     }
@@ -2269,7 +2260,7 @@ namespace WINApi.Controllers
 
             args.Add("@Memberid", objScreenArgs.MemberID ?? "");
             args.Add("@CONTRACT", objScreenArgs.Contract ?? "");
-            args.Add("@Authno", objScreenArgs1.FormatAuthNo ?? "");
+            args.Add("@Authno",objScreenArgs1.FormatAuthNo ?? "");
 
             using (DataSet ds = ExecuteDB(SP_PatientReimbursementtestValidation, objScreenArgs.Contract ?? "", args))
             {
@@ -2350,6 +2341,29 @@ namespace WINApi.Controllers
             }
             return VoidCpt;
         }
+        [HttpPost]
+        [ExceptionFilter, ValidateFilter]
+        public bool CheckAuthSubmitBlock()
+        {
+            RequestBase objRqstArgs = ATSParams?.ToJsonObject<RequestBase>();
+            bool isBlocked = false;
+            Dictionary<string, object> args = new Dictionary<string, object>();
+            args.Add("@UserName", objRqstArgs?.UserName ?? "");
+            args.Add("@TaskName", objRqstArgs?.TaskName ?? "");
+            try
+            {
+                using (DataSet ds = ExecuteDB("USP_CheckAuthSubmitBlock", "", args))
+                {
+                    if (ds != null && ds.Tables.Count > 0 && ds.Tables[0].Rows.Count > 0)
+                    {
+                        isBlocked = Convert.ToBoolean(ds.Tables[0].Rows[0]["IsBlocked"]);
+                    }
+                }
+            }
+            catch { }
+            return isBlocked;
+        }
     }
+
     #endregion
 }
